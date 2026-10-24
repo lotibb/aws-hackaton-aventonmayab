@@ -10,26 +10,6 @@ import { ServiceError } from './errors'
 // Name, phone, colonia and photo are not stored in Cognito. The sign-up form stashes them here and
 // they are saved to the profile API (keyed by the Cognito `sub`) on first sign-in.
 const PENDING_PROFILES_KEY = 'aventon-mayab:pending-profiles'
-const SCHEDULE_MIGRATION_KEY = 'aventon-mayab:schedules-migrated:v1'
-const migratedScheduleUsers = new Set<string>()
-
-function scheduleMigrationDone(userId: string): boolean {
-  if (migratedScheduleUsers.has(userId)) return true
-  try {
-    return window.localStorage.getItem(`${SCHEDULE_MIGRATION_KEY}:${userId}`) === '1'
-  } catch {
-    return false
-  }
-}
-
-function markScheduleMigrationDone(userId: string) {
-  migratedScheduleUsers.add(userId)
-  try {
-    window.localStorage.setItem(`${SCHEDULE_MIGRATION_KEY}:${userId}`, '1')
-  } catch {
-    // The in-memory marker still prevents a deleted class from being restored this session.
-  }
-}
 
 // Profile as stored by the API (PUT /me replaces it whole).
 interface ApiProfile {
@@ -123,7 +103,6 @@ export interface ScheduleInput {
   end: string
   building: string
   subject?: string
-  room?: string
 }
 
 export type ScheduleFileType = 'application/pdf' | 'image/jpeg' | 'image/png' | 'image/webp'
@@ -148,19 +127,8 @@ interface ApiImportedClass {
   building?: string
 }
 
-interface ApiSchedule {
-  userId: string
-  slotId: string
-  day: number
-  start: string
-  end: string
-  subject?: string
-  building?: string
-  room?: string
-}
-
 function toSchedule(user: User, input: ScheduleInput): Schedule {
-  if (!Number.isInteger(input.weekday) || input.weekday < 0 || input.weekday > 6) throw new ServiceError('INVALID_INPUT', 'Día no válido.')
+  if (input.weekday < 0 || input.weekday > 6) throw new ServiceError('INVALID_INPUT', 'Día no válido.')
   if (!/^\d{2}:\d{2}$/.test(input.start) || !/^\d{2}:\d{2}$/.test(input.end)) {
     throw new ServiceError('INVALID_INPUT', 'Horario no válido.')
   }
@@ -176,26 +144,7 @@ function toSchedule(user: User, input: ScheduleInput): Schedule {
     end: input.end,
     building: input.building,
     subject: input.subject?.trim().slice(0, 60) || undefined,
-    room: input.room?.trim().slice(0, 40) || undefined,
   }
-}
-
-function apiScheduleOf(schedule: Schedule) {
-  return {
-    day: schedule.weekday || 7,
-    start: schedule.start,
-    end: schedule.end,
-    subject: schedule.subject,
-    building: schedule.building,
-    room: schedule.room,
-  }
-}
-
-async function saveScheduleToApi(schedule: Schedule): Promise<void> {
-  await api(`/me/schedule/${encodeURIComponent(schedule.id)}`, {
-    method: 'PUT',
-    body: apiScheduleOf(schedule),
-  })
 }
 
 export const userService = {
@@ -277,7 +226,7 @@ export const userService = {
     } catch {
       throw new ServiceError('CONFLICT', 'No pudimos eliminar tu cuenta. Vuelve a iniciar sesión e inténtalo de nuevo.')
     }
-    // Clear the local schedule cache and parking check-ins after deleting the account.
+    // Schedules and parking check-ins still live in this browser until their APIs are connected.
     writeDb((db) => {
       db.schedules = db.schedules.filter((s) => s.userId !== user.id)
       db.parkingEvents = db.parkingEvents.filter((e) => e.userId !== user.id)
@@ -287,36 +236,11 @@ export const userService = {
     await authService.signOut().catch(() => {})
   },
 
-  // Schedules are private: the API only reads the signed-in student's partition key.
+  // Schedules are private: the authorizer restricts every query to the owner's partition key.
   async listSchedules(user: User): Promise<Schedule[]> {
-    const cached = readDb().schedules.filter((s) => s.userId === user.id)
-    let remote = await api<ApiSchedule[]>('/me/schedule')
-    // Copy classes from the old browser-only version just once. Repeating this on each
-    // refresh would recreate classes another device deleted from the account.
-    if (!scheduleMigrationDone(user.id)) {
-      const remoteTimes = new Set(remote.map((s) => `${s.day}|${s.start}|${s.end}`))
-      const localOnly = cached.filter((s) => !remoteTimes.has(`${s.weekday || 7}|${s.start}|${s.end}`))
-      if (localOnly.length) {
-        for (const schedule of localOnly) await saveScheduleToApi(schedule)
-        remote = await api<ApiSchedule[]>('/me/schedule')
-      }
-      markScheduleMigrationDone(user.id)
-    }
-    const cachedById = new Map(cached.map((s) => [s.id, s]))
-    const schedules = remote.map((s) => ({
-      id: s.slotId,
-      userId: user.id,
-      weekday: s.day % 7,
-      start: s.start,
-      end: s.end,
-      subject: s.subject,
-      building: s.building ?? cachedById.get(s.slotId)?.building ?? 'Sin edificio',
-      room: s.room ?? cachedById.get(s.slotId)?.room,
-    })).sort((a, b) => a.weekday - b.weekday || timeToMinutes(a.start) - timeToMinutes(b.start))
-    writeDb((db) => {
-      db.schedules = [...db.schedules.filter((s) => s.userId !== user.id), ...schedules]
-    })
-    return schedules
+    return readDb()
+      .schedules.filter((s) => s.userId === user.id)
+      .sort((a, b) => a.weekday - b.weekday || timeToMinutes(a.start) - timeToMinutes(b.start))
   },
 
   async addSchedule(user: User, input: ScheduleInput): Promise<Schedule> {
@@ -324,26 +248,16 @@ export const userService = {
     return schedule
   },
 
-  /** Adds several classes to the student's account; a failed batch rolls back its saved slots. */
+  /** Adds several classes at once; if any is invalid, none is saved. */
   async addSchedules(user: User, inputs: ScheduleInput[]): Promise<Schedule[]> {
     const schedules = inputs.map((input) => toSchedule(user, input))
-    const saved: Schedule[] = []
-    try {
-      for (const schedule of schedules) {
-        await saveScheduleToApi(schedule)
-        saved.push(schedule)
-      }
-    } catch (error) {
-      await Promise.allSettled(saved.map((schedule) => api(`/me/schedule/${encodeURIComponent(schedule.id)}`, { method: 'DELETE' })))
-      throw error
-    }
     writeDb((db) => {
       db.schedules.push(...schedules)
     })
     return schedules
   },
 
-  /** Reads a timetable (PDF or image, base64) on the API. Nothing is saved until the student confirms. */
+  /** Reads a timetable (PDF or image, base64) with Claude on the API. Nothing is saved until the student confirms. */
   async importSchedule(file: { data: string; mediaType: ScheduleFileType }): Promise<ImportedClass[]> {
     const { classes } = await api<{ classes: ApiImportedClass[] }>('/me/schedule/import', {
       method: 'POST',
@@ -361,10 +275,9 @@ export const userService = {
   },
 
   async removeSchedule(user: User, scheduleId: string): Promise<void> {
-    const found = readDb().schedules.find((s) => s.id === scheduleId)
-    if (!found || found.userId !== user.id) throw new ServiceError('FORBIDDEN', 'No puedes modificar este horario.')
-    await api(`/me/schedule/${encodeURIComponent(scheduleId)}`, { method: 'DELETE' })
     writeDb((db) => {
+      const found = db.schedules.find((s) => s.id === scheduleId)
+      if (!found || found.userId !== user.id) throw new ServiceError('FORBIDDEN', 'No puedes modificar este horario.')
       db.schedules = db.schedules.filter((s) => s.id !== scheduleId)
     })
   },

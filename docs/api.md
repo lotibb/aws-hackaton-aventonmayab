@@ -65,6 +65,6 @@ Perfil público (`driver`, `passenger`): `{ id, name, colonia, photoUrl, phone? 
 | `PUT /me` | `{ name, colonia, phone, photoUrl, activeMode, privacyAcceptedAt }` | Reemplaza el perfil completo. El email sale del token. `phone` es un celular de 10 dígitos (acepta `+52`, espacios y guiones; se guarda solo con los 10 dígitos) y solo lo ven otros alumnos con un viaje aceptado contigo (ver Privacidad). `photoUrl` es una imagen pequeña (data URL de hasta 200 KB) |
 | `DELETE /me` | | Borra la cuenta y todos sus datos |
 | `GET /me/schedule` | | Clases del alumno |
-| `PUT /me/schedule/{slotId}` | `{ day: 1-7 (lunes-domingo), start: "HH:MM", end: "HH:MM", subject?, building?, room? }` | La clase guardada en la cuenta del alumno |
+| `PUT /me/schedule/{slotId}` | `{ day: 1-7 (lunes-domingo), start: "HH:MM", end: "HH:MM", subject? }` | La clase guardada |
 | `DELETE /me/schedule/{slotId}` | | |
-| `POST /me/schedule/import` | `{ file: base64, mediaType: "application/pdf" \| "image/jpeg" \| "image/png" \| "image/webp", buildings?: string[] }` | `{ classes: [{ day: 1-7, start, end, subject?, room?, building? }] }`. Lee la capa de texto del PDF oficial «Mi Plan A»; para otras fotos o PDF usa Claude. No guarda nada hasta que el alumno confirme. Archivo de hasta 4 MB; 422 si no encuentra clases |
+| `POST /me/schedule/import` | `{ file: base64, mediaType: "application/pdf" \| "image/jpeg" \| "image/png" \| "image/webp", buildings?: string[] }` | `{ classes: [{ day: 1-7, start, end, subject?, room?, building? }] }` leídas del archivo con Claude. No guarda nada. Archivo de hasta 4 MB; 422 si no encuentra clases |

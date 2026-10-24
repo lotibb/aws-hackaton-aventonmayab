@@ -18,7 +18,7 @@ import { ScheduleImportReview } from './schedule-import-review'
 const SCHOOL_DAYS = [1, 2, 3, 4, 5, 6]
 
 export function ScheduleManager({ user }: { user: User }) {
-  const { data: schedules, error: scheduleError, mutate: refreshSchedules } = useSchedules(user)
+  const { data: schedules } = useSchedules(user)
   const [adding, setAdding] = useState(false)
   const [weekday, setWeekday] = useState('1')
   const [start, setStart] = useState('08:00')
@@ -42,7 +42,6 @@ export function ScheduleManager({ user }: { user: User }) {
       toast.success('Horario agregado.')
       setSubject('')
       setAdding(false)
-      void refreshSchedules()
     } catch (err) {
       toast.error(errorMessage(err))
     } finally {
@@ -68,7 +67,6 @@ export function ScheduleManager({ user }: { user: User }) {
   async function remove(id: string) {
     try {
       await userService.removeSchedule(user, id)
-      void refreshSchedules()
     } catch (err) {
       toast.error(errorMessage(err))
     }
@@ -81,12 +79,7 @@ export function ScheduleManager({ user }: { user: User }) {
         Tus horarios son privados. Solo se usan de forma agregada para proyectar la ocupación y para darte recomendaciones a ti.
       </p>
 
-      {scheduleError ? (
-        <div className="flex items-center justify-between gap-3 p-4 text-sm">
-          <span>No pudimos cargar tus clases.</span>
-          <Button variant="outline" onClick={() => void refreshSchedules()}>Reintentar</Button>
-        </div>
-      ) : schedules === undefined ? (
+      {schedules === undefined ? (
         <div className="m-4 h-12 animate-pulse rounded-xl bg-muted" />
       ) : sorted.length === 0 ? (
         <p className="p-4 text-sm text-muted-foreground">Aún no agregas clases.</p>
@@ -98,7 +91,7 @@ export function ScheduleManager({ user }: { user: User }) {
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-sm font-medium">{s.subject ?? s.building}</span>
                 <span className="text-xs text-muted-foreground tabular-nums">
-                  {s.start}–{s.end} · {s.building}{s.room && ` · Salón ${s.room}`}
+                  {s.start}–{s.end} · {s.building}
                 </span>
               </span>
               <Button size="icon" variant="ghost" className="size-11" onClick={() => remove(s.id)}>
@@ -113,7 +106,7 @@ export function ScheduleManager({ user }: { user: User }) {
       )}
 
       {imported ? (
-        <ScheduleImportReview user={user} classes={imported} existing={schedules ?? []} onDone={() => setImported(null)} onSaved={() => void refreshSchedules()} />
+        <ScheduleImportReview user={user} classes={imported} existing={schedules ?? []} onDone={() => setImported(null)} />
       ) : adding ? (
         <form onSubmit={add} className="flex flex-col gap-3 border-t p-4">
           <div className="grid grid-cols-3 gap-2">
@@ -182,7 +175,7 @@ export function ScheduleManager({ user }: { user: User }) {
           </Button>
         </div>
       )}
-      <input ref={fileRef} type="file" accept=".pdf,application/pdf,image/*" className="hidden" onChange={onFile} />
+      <input ref={fileRef} type="file" accept="application/pdf,image/*" className="hidden" onChange={onFile} />
     </div>
   )
 }

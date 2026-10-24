@@ -32,7 +32,7 @@ function loadImage(file: File): Promise<HTMLImageElement> {
 
 /** Turns a timetable PDF or photo into the base64 payload the import API expects. Photos are shrunk to a JPEG first. */
 export async function readScheduleFile(file: File): Promise<{ data: string; mediaType: ScheduleFileType }> {
-  if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+  if (file.type === 'application/pdf') {
     if (file.size > MAX_PDF_BYTES) throw new ServiceError('INVALID_INPUT', 'El PDF debe pesar menos de 4 MB.')
     const dataUrl = await readAsDataUrl(file)
     return { data: dataUrl.slice(dataUrl.indexOf(',') + 1), mediaType: 'application/pdf' }

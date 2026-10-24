@@ -159,7 +159,6 @@ export interface Schedule {
   end: string
   building: string
   subject?: string
-  room?: string
 }
 
 export type DataSource = 'verificado' | 'estimado' | 'simulado'

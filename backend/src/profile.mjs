@@ -90,11 +90,11 @@ async function getSchedule(event) {
   return query(tables.schedules, undefined, "userId", userId);
 }
 
-// PUT /me/schedule/{slotId}  { day: 1-7 (lunes-domingo), start, end, subject?, building?, room? }
+// PUT /me/schedule/{slotId}  { day: 1-7 (lunes-domingo), start: "HH:MM", end: "HH:MM", subject? }
 async function saveSlot(event) {
   const { userId } = caller(event);
   const { slotId } = event.pathParameters;
-  const { day, start, end, subject, building, room } = readBody(event);
+  const { day, start, end, subject } = readBody(event);
   if (slotId.length > 64) throw new HttpError(400, "slotId demasiado largo");
   if (!Number.isInteger(day) || day < 1 || day > 7) {
     throw new HttpError(400, "day debe ser de 1 (lunes) a 7 (domingo)");
@@ -102,16 +102,7 @@ async function saveSlot(event) {
   if (!TIME.test(start) || !TIME.test(end) || start >= end) {
     throw new HttpError(400, "Horario inválido, usa HH:MM");
   }
-  const slot = {
-    userId,
-    slotId,
-    day,
-    start,
-    end,
-    subject: optionalText(subject, "Materia", 100),
-    building: optionalText(building, "Edificio", 80),
-    room: optionalText(room, "Salón", 40),
-  };
+  const slot = { userId, slotId, day, start, end, subject: optionalText(subject, "Materia", 100) };
   await db.send(new PutCommand({ TableName: tables.schedules, Item: slot }));
   return slot;
 }

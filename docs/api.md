@@ -14,6 +14,7 @@ Todas las rutas requieren `Authorization: Bearer <token>`, con el token de `auth
   - El ID del alumno siempre sale del token, nunca del body.
   - El punto de encuentro solo lo ven el conductor y los pasajeros aceptados mientras el viaje está `Disponible` o `En curso`.
   - Antes del match (solicitud enviada o aceptada) solo se ve el nombre de pila del conductor.
+  - El celular (`phone` en `driver` y `passenger`) solo se envía cuando el conductor aceptó la solicitud y el viaje está `Disponible` o `En curso`: el pasajero ve el del conductor y el conductor el de ese pasajero. Con la solicitud pendiente, rechazada o cancelada, o con el viaje terminado, no aparece.
   - Cada quien ve solo su propio horario.
 - **Borrar cuenta:** `DELETE /me` borra todo lo del alumno (perfil, horario, entrada de estacionamiento, solicitudes y viajes propios) y su cuenta de Cognito. Si tenía un asiento aceptado, se devuelve al viaje.
 
@@ -35,7 +36,7 @@ Viaje: `{ tripId, driverId, driver, colonia, destination?, routeDescription?, de
 
 Solicitud: `{ tripId, passengerId, status, consentGivenAt, createdAt, updatedAt, passenger? }`
 
-Perfil público (`driver`, `passenger`): `{ id, name, colonia, photoUrl }`, o `null` si la cuenta se borró. `meetingPoint` es el id de un punto público de `frontend/lib/config.ts`.
+Perfil público (`driver`, `passenger`): `{ id, name, colonia, photoUrl, phone? }`, o `null` si la cuenta se borró. `meetingPoint` es el id de un punto público de `frontend/lib/config.ts`.
 
 `departureTime` va en ISO 8601 UTC, por ejemplo `"2026-10-26T13:30:00Z"` (usa `new Date(...).toISOString()`).
 
@@ -60,7 +61,7 @@ Perfil público (`driver`, `passenger`): `{ id, name, colonia, photoUrl }`, o `n
 | Ruta | Body | Respuesta |
 | --- | --- | --- |
 | `GET /me` | | `{ userId, email, name, colonia, phone, photoUrl, activeMode, privacyAcceptedAt, createdAt }` |
-| `PUT /me` | `{ name, colonia, phone, photoUrl, activeMode, privacyAcceptedAt }` | Reemplaza el perfil completo. El email sale del token. `phone` es un celular de 10 dígitos (acepta `+52`, espacios y guiones; se guarda solo con los 10 dígitos) y no se muestra a otros alumnos. `photoUrl` es una imagen pequeña (data URL de hasta 200 KB) |
+| `PUT /me` | `{ name, colonia, phone, photoUrl, activeMode, privacyAcceptedAt }` | Reemplaza el perfil completo. El email sale del token. `phone` es un celular de 10 dígitos (acepta `+52`, espacios y guiones; se guarda solo con los 10 dígitos) y solo lo ven otros alumnos con un viaje aceptado contigo (ver Privacidad). `photoUrl` es una imagen pequeña (data URL de hasta 200 KB) |
 | `DELETE /me` | | Borra la cuenta y todos sus datos |
 | `GET /me/schedule` | | Clases del alumno |
 | `PUT /me/schedule/{slotId}` | `{ day: 1-7 (lunes-domingo), start: "HH:MM", end: "HH:MM", subject? }` | La clase guardada |

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { errorMessage, tripService } from '@/lib/services'
+import { ContactPhone } from './contact-phone'
 import type { TripView, User } from '@/lib/types'
 
 function useAction() {
@@ -91,11 +92,14 @@ function DriverActions({ user, trip }: { user: User; trip: TripView }) {
           <h2 id="passengers" className="text-sm font-semibold text-muted-foreground">
             Pasajeros confirmados
           </h2>
-          <ul className="flex flex-wrap gap-3">
+          <ul className="flex flex-col gap-2">
             {accepted.map((r) => (
-              <li key={r.id} className="flex items-center gap-2 rounded-full border bg-card py-1 pr-3 pl-1">
-                <UserAvatar name={r.passenger.displayName} photoUrl={r.passenger.photoUrl} className="size-8" />
-                <span className="text-sm">{r.passenger.displayName}</span>
+              <li key={r.id} className="flex flex-col gap-3 rounded-xl border bg-card p-3">
+                <div className="flex items-center gap-3">
+                  <UserAvatar name={r.passenger.displayName} photoUrl={r.passenger.photoUrl} className="size-8" />
+                  <span className="text-sm font-medium">{r.passenger.displayName}</span>
+                </div>
+                {r.passenger.phone && <ContactPhone name={r.passenger.displayName} phone={r.passenger.phone} />}
               </li>
             ))}
           </ul>

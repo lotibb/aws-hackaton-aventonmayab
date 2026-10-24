@@ -54,7 +54,7 @@ async function loadProfiles(userIds) {
       RequestItems: {
         [tables.users]: {
           Keys: ids.map((userId) => ({ userId })),
-          ProjectionExpression: "userId, #n, colonia, photoUrl",
+          ProjectionExpression: "userId, #n, colonia, photoUrl, phone",
           ExpressionAttributeNames: { "#n": "name" },
         },
       },
@@ -63,9 +63,14 @@ async function loadProfiles(userIds) {
   return Object.fromEntries(Responses[tables.users].map((p) => [p.userId, p]));
 }
 
+// The phone number is shared only between a driver and a passenger the driver accepted,
+// and only while the trip is active.
+const shareContact = (trip, request) =>
+  request?.status === "accepted" && ACTIVE.includes(trip.status);
+
 // What other students may see. Before a match (request sent or accepted) only the first name.
 // null means the account was deleted.
-function publicProfile(profiles, userId, fullName) {
+function publicProfile(profiles, userId, fullName, withPhone = false) {
   const profile = profiles[userId];
   if (!profile) return null;
   const name = profile.name || "Estudiante";
@@ -74,6 +79,7 @@ function publicProfile(profiles, userId, fullName) {
     name: fullName ? name : name.split(" ")[0],
     colonia: profile.colonia,
     photoUrl: profile.photoUrl,
+    phone: withPhone ? profile.phone : undefined,
   };
 }
 
@@ -82,14 +88,17 @@ function presentTrip(trip, userId, request, profiles) {
     trip.driverId === userId || ["pending", "accepted"].includes(request?.status);
   return {
     ...visibleTrip(trip, userId, request),
-    driver: publicProfile(profiles, trip.driverId, matched),
+    driver: publicProfile(profiles, trip.driverId, matched, shareContact(trip, request)),
     myRequest: request ?? null,
   };
 }
 
 // The driver sees who asked for a seat, with their full name.
-function presentRequests(requests, profiles) {
-  return requests.map((r) => ({ ...r, passenger: publicProfile(profiles, r.passengerId, true) }));
+function presentRequests(trip, requests, profiles) {
+  return requests.map((r) => ({
+    ...r,
+    passenger: publicProfile(profiles, r.passengerId, true, shareContact(trip, r)),
+  }));
 }
 
 async function loadTrip(tripId) {
@@ -229,7 +238,7 @@ async function getTrip(event) {
     const profiles = await loadProfiles([trip.driverId, ...requests.map((r) => r.passengerId)]);
     return {
       ...presentTrip(trip, me.userId, undefined, profiles),
-      requests: presentRequests(requests, profiles),
+      requests: presentRequests(trip, requests, profiles),
     };
   }
   const myRequest = await loadRequest(trip.tripId, me.userId);
@@ -278,7 +287,7 @@ async function myTrips(event) {
   return {
     asDriver: driving.map((t, i) => ({
       ...presentTrip(t, me.userId, undefined, profiles),
-      requests: presentRequests(drivingRequests[i], profiles),
+      requests: presentRequests(t, drivingRequests[i], profiles),
     })),
     asPassenger: requests
       .filter((r) => tripsById[r.tripId])

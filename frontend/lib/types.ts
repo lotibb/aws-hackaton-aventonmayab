@@ -36,6 +36,8 @@ export interface PublicProfile {
   displayName: string
   photoUrl?: string
   colonia: Colonia
+  /** Only present between a driver and an accepted passenger while the trip is active. */
+  phone?: string
 }
 
 /**

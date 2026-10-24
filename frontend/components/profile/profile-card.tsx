@@ -118,7 +118,7 @@ export function ProfileCard({ user }: { user: User }) {
             className="h-12 text-base md:text-base"
           />
           <p id="phone-hint" className={user.phone ? 'text-xs text-muted-foreground' : 'text-sm text-primary'}>
-            {user.phone ? 'Tu medio de contacto. No se muestra a desconocidos.' : 'Agrega tu celular para completar tu perfil.'}
+            {user.phone ? 'Solo lo ve quien tenga un viaje aceptado contigo, mientras el viaje está activo.' : 'Agrega tu celular para completar tu perfil.'}
           </p>
         </div>
         <div className="flex flex-col gap-2">

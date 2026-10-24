@@ -95,7 +95,7 @@ export function SignUpForm() {
           inputMode="tel"
           autoComplete="tel-national"
           placeholder="999 123 4567"
-          hint="10 dígitos. Es tu medio de contacto; no se muestra a desconocidos."
+          hint="10 dígitos. Solo lo ve quien tenga un viaje aceptado contigo."
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           error={errors.phone}

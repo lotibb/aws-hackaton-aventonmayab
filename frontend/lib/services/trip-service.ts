@@ -37,6 +37,7 @@ interface ApiProfile {
   name: string
   colonia?: Colonia
   photoUrl?: string
+  phone?: string
 }
 
 interface ApiRequest {
@@ -88,6 +89,7 @@ function profileOf(profile: ApiProfile | null | undefined): PublicProfile {
     displayName: profile.name,
     photoUrl: profile.photoUrl,
     colonia: profile.colonia ?? 'Centro',
+    phone: profile.phone,
   }
 }
 

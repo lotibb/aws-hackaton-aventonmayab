@@ -65,5 +65,5 @@ Perfil público (`driver`, `passenger`): `{ id, name, colonia, photoUrl, phone? 
 | `PUT /me` | `{ name, colonia, phone, photoUrl, activeMode, privacyAcceptedAt }` | Reemplaza el perfil completo. El email sale del token. `phone` es un celular de 10 dígitos (acepta `+52`, espacios y guiones; se guarda solo con los 10 dígitos) y solo lo ven otros alumnos con un viaje aceptado contigo (ver Privacidad). `photoUrl` es una imagen pequeña (data URL de hasta 200 KB) |
 | `DELETE /me` | | Borra la cuenta y todos sus datos |
 | `GET /me/schedule` | | Clases del alumno |
-| `PUT /me/schedule/{slotId}` | `{ day: 1-7 (lunes-domingo), start: "HH:MM", end: "HH:MM", subject? }` | La clase guardada |
+| `PUT /me/schedule/{slotId}` | `{ day: 1-7 (lunes-domingo), start: "HH:MM", end: "HH:MM", subject?, building?, room? }` | La clase guardada |
 | `DELETE /me/schedule/{slotId}` | | |

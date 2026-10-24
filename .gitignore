@@ -16,3 +16,23 @@ node_modules
 .DS_Store.env
 .env.*
 !.env.example
+# Dependencies and builds
+node_modules/
+.next/
+out/
+dist/
+.vercel/
+.aws-sam/
+cdk.out/
+__pycache__/
+*.pyc
+
+# Local env files (never commit keys)
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

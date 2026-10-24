@@ -1,0 +1,10 @@
+# `sam deploy` from backend/ deploys template.yaml with these settings.
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "aventon-mayab-backend"
+region = "us-east-1"
+resolve_s3 = true
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = false
+parameter_overrides = "UserPoolId=us-east-1_IypBl72F8"

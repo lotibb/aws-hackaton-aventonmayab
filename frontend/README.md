@@ -19,7 +19,7 @@ La app se compila a archivos estáticos (`output: 'export'`) que se sirven desde
 ./deploy-aws.sh     # compila, sube a S3 e invalida la caché de CloudFront
 ```
 
-Requiere la AWS CLI con credenciales y pnpm. En Windows, córrelo desde Git Bash. Las variables de `.env.example` se incluyen en el build; son públicas, así que nunca pongas llaves de AWS en el frontend.
+Requiere la AWS CLI con credenciales y pnpm. En Windows, córrelo desde Git Bash. Mientras la app use Next.js 16.4.0, el build puede detenerse con un aviso de seguridad (`SecurityFatalError`); vuelve a correr el script y continúa. Se quita actualizando a Next.js 16.4.1. Las variables de `.env.example` se incluyen en el build; son públicas, así que nunca pongas llaves de AWS en el frontend.
 
 Como no hay servidor, no se pueden usar rutas dinámicas (`[id]`), middleware ni rutas API. Por eso el detalle de viaje es `/viajes/detalle?id=...`.
 

@@ -2,6 +2,7 @@
 
 import { CarFront, UserRound } from 'lucide-react'
 import { toast } from 'sonner'
+import { useSWRConfig } from 'swr'
 import { errorMessage, userService } from '@/lib/services'
 import type { User, UserMode } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -12,10 +13,17 @@ const OPTIONS: Array<{ value: UserMode; label: string; icon: typeof CarFront }> 
 ]
 
 export function ModeSwitch({ user }: { user: User }) {
+  const { mutate } = useSWRConfig()
+
   async function change(mode: UserMode) {
     if (mode === user.activeMode) return
+    // The session lives in SWR, so switch it right away and keep what the API saved.
     try {
-      await userService.setMode(user, mode)
+      await mutate('session', userService.setMode(user, mode), {
+        optimisticData: { ...user, activeMode: mode },
+        rollbackOnError: true,
+        revalidate: false,
+      })
     } catch (err) {
       toast.error(errorMessage(err))
     }

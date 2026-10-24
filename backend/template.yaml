@@ -94,6 +94,8 @@ Resources:
             TableName: aventon-seat-requests
         - DynamoDBReadPolicy:
             TableName: aventon-users
+        - DynamoDBReadPolicy:
+            TableName: aventon-schedules
 
   ParkingFunction:
     Type: AWS::Serverless::Function

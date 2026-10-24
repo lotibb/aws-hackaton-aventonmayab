@@ -163,44 +163,71 @@ function requestStatusUpdate(tripId, passengerId, from, to) {
   };
 }
 
+// The days a driver arrives at and leaves the university, from their class schedule.
+// Only those times are published; subjects, buildings and rooms stay private.
+async function weeklyDays(userId) {
+  const { Items } = await db.send(
+    new QueryCommand({
+      TableName: tables.schedules,
+      KeyConditionExpression: "userId = :me",
+      ExpressionAttributeValues: { ":me": userId },
+    }),
+  );
+  const byDay = {};
+  for (const { day, start, end } of Items) {
+    const d = (byDay[day] ??= { day, arriveBy: start, leaveAt: end });
+    if (start < d.arriveBy) d.arriveBy = start;
+    if (end > d.leaveAt) d.leaveAt = end;
+  }
+  return Object.values(byDay).sort((a, b) => a.day - b.day);
+}
+
 // GET /trips?colonia=&from=  Other drivers' open trips with free seats, by departure time.
+// Weekly trips have no single departure, so they are listed while they stay open.
 async function listTrips(event) {
   const me = caller(event);
   const { colonia, from } = event.queryStringParameters ?? {};
   const since = from ? toIso(from) : new Date().toISOString();
-  const values = { ":since": since };
   const [{ Items }, myRequests] = await Promise.all([
     colonia
       ? db.send(
           new QueryCommand({
             TableName: tables.trips,
             IndexName: "byColonia",
-            KeyConditionExpression: "colonia = :c AND departureTime >= :since",
-            ExpressionAttributeValues: { ...values, ":c": colonia },
+            KeyConditionExpression: "colonia = :c",
+            ExpressionAttributeValues: { ":c": colonia },
           }),
         )
       : db.send(
           new ScanCommand({
             TableName: tables.trips,
-            FilterExpression: "departureTime >= :since",
-            ExpressionAttributeValues: values,
+            FilterExpression: "departureTime >= :since OR #k = :weekly",
+            ExpressionAttributeNames: { "#k": "kind" },
+            ExpressionAttributeValues: { ":since": since, ":weekly": "weekly" },
           }),
         ),
     passengerRequests(me.userId),
   ]);
   const requestsByTrip = Object.fromEntries(myRequests.map((r) => [r.tripId, r]));
   const open = Items.filter(
-    (t) => t.status === "Disponible" && t.seatsLeft > 0 && t.driverId !== me.userId,
+    (t) =>
+      (t.departureTime >= since || t.kind === "weekly") &&
+      t.status === "Disponible" &&
+      t.seatsLeft > 0 &&
+      t.driverId !== me.userId,
   ).sort((a, b) => a.departureTime.localeCompare(b.departureTime));
   const profiles = await loadProfiles(open.map((t) => t.driverId));
   return open.map((t) => presentTrip(t, me.userId, requestsByTrip[t.tripId], profiles));
 }
 
 // POST /trips  { colonia, destination, departureTime, seatsTotal, meetingPoint?, routeDescription? }
+// With kind: "weekly" there is no departureTime: the trip covers the driver's whole week,
+// using the time they arrive at and leave the university each day of their class schedule.
 async function createTrip(event) {
   const me = caller(event);
   const body = readBody(event);
   const { colonia, departureTime, seatsTotal, meetingPoint } = body;
+  const weekly = body.kind === "weekly";
   const origin = optionalText(colonia, "Origen", 80);
   if (!origin) throw new HttpError(400, "Falta el lugar de salida");
   const publicMeetingPoint = optionalText(meetingPoint, "Punto de encuentro", 120);
@@ -208,18 +235,24 @@ async function createTrip(event) {
   if (!Number.isInteger(seats) || seats < 1 || seats > 8) {
     throw new HttpError(400, "Los asientos deben ser de 1 a 8");
   }
+  const days = weekly ? await weeklyDays(me.userId) : undefined;
+  if (weekly && !days.length) {
+    throw new HttpError(400, "Primero arma tu horario de clases en tu perfil");
+  }
+  const now = new Date().toISOString();
   const trip = {
     tripId: randomUUID(),
     driverId: me.userId,
     colonia: origin,
     destination: optionalText(body.destination, "Destino", 80),
     routeDescription: optionalText(body.routeDescription, "Ruta", 140),
-    departureTime: toIso(departureTime),
+    departureTime: weekly ? now : toIso(departureTime),
+    ...(weekly ? { kind: "weekly", days } : {}),
     seatsTotal: seats,
     seatsLeft: seats,
     ...(publicMeetingPoint ? { meetingPoint: publicMeetingPoint } : {}),
     status: "Disponible",
-    createdAt: new Date().toISOString(),
+    createdAt: now,
   };
   await db.send(new PutCommand({ TableName: tables.trips, Item: trip }));
   const profiles = await loadProfiles([me.userId]);

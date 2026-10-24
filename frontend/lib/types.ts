@@ -87,8 +87,21 @@ export interface TripRequestView {
 }
 
 /** Sanitized trip returned to a specific viewer. Fields are omitted when not allowed. */
+/** One day of a weekly trip. weekday: 0 = domingo … 6 = sábado. Times are HH:mm. */
+export interface WeeklyTripDay {
+  weekday: number
+  /** When the driver has to be at the university (their first class). */
+  arriveBy: string
+  /** When the driver leaves the university (their last class ends). */
+  leaveAt: string
+}
+
 export interface TripView {
   id: string
+  /** `weekly` covers the driver's whole week of classes instead of a single departure. */
+  kind: 'single' | 'weekly'
+  /** Only for weekly trips, Monday first. */
+  days?: WeeklyTripDay[]
   driver: PublicProfile
   originColonia: string
   destination: string

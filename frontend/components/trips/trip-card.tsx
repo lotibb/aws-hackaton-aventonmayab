@@ -4,6 +4,7 @@ import { UserAvatar } from '@/components/shared/user-avatar'
 import { firstName, formatTripDate } from '@/lib/format'
 import type { TripView } from '@/lib/types'
 import { TripProgress, TripStatusBadge } from './trip-status'
+import { weeklyDaysLabel } from './weekly-days'
 
 /** Shows only first name, photo, colonia, time, seats and state. Never an address. */
 export function TripCard({ trip }: { trip: TripView }) {
@@ -28,7 +29,13 @@ export function TripCard({ trip }: { trip: TripView }) {
       <div className="flex items-center gap-4 text-sm">
         <span className="flex items-center gap-1.5">
           <Clock className="size-4 text-muted-foreground" aria-hidden="true" />
-          <span className="capitalize">{formatTripDate(trip.date)}</span> · {trip.time}
+          {trip.kind === 'weekly' ? (
+            <span>Semanal · {weeklyDaysLabel(trip.days)}</span>
+          ) : (
+            <>
+              <span className="capitalize">{formatTripDate(trip.date)}</span> · {trip.time}
+            </>
+          )}
         </span>
         <span className="flex items-center gap-1.5">
           <Users className="size-4 text-muted-foreground" aria-hidden="true" />

@@ -30,6 +30,9 @@ export interface PublishTripInput {
   meetingPoint?: string
 }
 
+/** A weekly trip takes its days and times from the driver's class schedule. */
+export type PublishWeeklyTripInput = Omit<PublishTripInput, 'date' | 'time'>
+
 // Shapes returned by the API (docs/api.md). Visibility rules are applied by the Lambda:
 // the meeting point and full names only arrive when the viewer is allowed to see them.
 interface ApiProfile {
@@ -55,6 +58,9 @@ interface ApiTrip {
   destination?: string
   routeDescription?: string
   departureTime: string
+  kind?: 'weekly'
+  /** Weekly trips only. day: 1 = lunes … 7 = domingo. */
+  days?: { day: number; arriveBy: string; leaveAt: string }[]
   seatsTotal: number
   seatsLeft: number
   /** Public meeting point, visible to the driver and accepted passengers. */
@@ -127,6 +133,10 @@ function toView(trip: ApiTrip, viewer: User): TripView {
 
   const view: TripView = {
     id: trip.tripId,
+    kind: trip.kind === 'weekly' ? 'weekly' : 'single',
+    days: trip.days
+      ?.map((d) => ({ weekday: d.day % 7, arriveBy: d.arriveBy, leaveAt: d.leaveAt }))
+      .sort((a, b) => ((a.weekday + 6) % 7) - ((b.weekday + 6) % 7)),
     driver: profileOf(trip.driver),
     originColonia: trip.colonia,
     destination: trip.destination ?? DEFAULT_DESTINATION,
@@ -144,7 +154,7 @@ function toView(trip: ApiTrip, viewer: User): TripView {
 
   if (trip.meetingPoint && (stored === 'publicado' || stored === 'en_curso')) {
     view.meetingPoint = trip.meetingPoint
-    view.pickupTime = view.time
+    if (view.kind === 'single') view.pickupTime = view.time
   }
 
   if (isDriver) {
@@ -167,6 +177,28 @@ async function mutate<T>(request: Promise<T>): Promise<T> {
   return result
 }
 
+/** Validates the fields both kinds of trip share and returns them as the API expects. */
+function tripBody(input: PublishWeeklyTripInput) {
+  const origin = input.originColonia.trim()
+  if (origin.length < 2 || origin.length > 80) throw new ServiceError('INVALID_INPUT', 'Escribe un lugar de salida (máximo 80 caracteres).')
+  const destination = input.destination.trim()
+  if (destination.length < 2 || destination.length > 80) throw new ServiceError('INVALID_INPUT', 'Escribe un destino (máximo 80 caracteres).')
+  const meetingPoint = input.meetingPoint?.trim()
+  if (meetingPoint && meetingPoint.length > 120) throw new ServiceError('INVALID_INPUT', 'El punto de encuentro no debe pasar de 120 caracteres.')
+  if (!Number.isInteger(input.seatsTotal) || input.seatsTotal < 1 || input.seatsTotal > 4) {
+    throw new ServiceError('INVALID_INPUT', 'Puedes ofrecer de 1 a 4 lugares.')
+  }
+  const route = input.routeDescription.trim()
+  if (route.length > 140) throw new ServiceError('INVALID_INPUT', 'La ruta no debe pasar de 140 caracteres.')
+  return {
+    colonia: origin,
+    destination,
+    routeDescription: route || undefined,
+    seatsTotal: input.seatsTotal,
+    meetingPoint: meetingPoint || undefined,
+  }
+}
+
 export const tripService = {
   /** Passengers search without sharing any location. */
   async listAvailable(user: User, filters: TripFilters = {}): Promise<TripView[]> {
@@ -179,10 +211,14 @@ export const tripService = {
       .map((t) => toView(t, user))
       .filter((t) => {
         if (origin && !t.originColonia.toLocaleLowerCase().includes(origin)) return false
-        const m = timeToMinutes(t.time)
-        if (filters.fromMinutes !== undefined && m < filters.fromMinutes) return false
-        if (filters.toMinutes !== undefined && m > filters.toMinutes) return false
-        return true
+        // A weekly trip matches when any of its days arrives at the university in the range.
+        const times = t.kind === 'weekly' ? (t.days ?? []).map((d) => d.arriveBy) : [t.time]
+        return times.some((time) => {
+          const m = timeToMinutes(time)
+          if (filters.fromMinutes !== undefined && m < filters.fromMinutes) return false
+          if (filters.toMinutes !== undefined && m > filters.toMinutes) return false
+          return true
+        })
       })
       .sort(sortByDateTime)
   },
@@ -210,35 +246,23 @@ export const tripService = {
   },
 
   async publishTrip(user: User, input: PublishTripInput): Promise<TripView> {
-    const origin = input.originColonia.trim()
-    if (origin.length < 2 || origin.length > 80) throw new ServiceError('INVALID_INPUT', 'Escribe un lugar de salida (máximo 80 caracteres).')
-    const destination = input.destination.trim()
-    if (destination.length < 2 || destination.length > 80) throw new ServiceError('INVALID_INPUT', 'Escribe un destino (máximo 80 caracteres).')
-    const meetingPoint = input.meetingPoint?.trim()
-    if (meetingPoint && meetingPoint.length > 120) throw new ServiceError('INVALID_INPUT', 'El punto de encuentro no debe pasar de 120 caracteres.')
-    if (!Number.isInteger(input.seatsTotal) || input.seatsTotal < 1 || input.seatsTotal > 4) {
-      throw new ServiceError('INVALID_INPUT', 'Puedes ofrecer de 1 a 4 lugares.')
-    }
+    const body = tripBody(input)
     if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date) || input.date < toIsoDate(new Date())) {
       throw new ServiceError('INVALID_INPUT', 'Elige una fecha de hoy en adelante.')
     }
     if (!/^\d{2}:\d{2}$/.test(input.time)) throw new ServiceError('INVALID_INPUT', 'Elige una hora válida.')
-    const route = input.routeDescription.trim()
-    if (route.length > 140) throw new ServiceError('INVALID_INPUT', 'La ruta no debe pasar de 140 caracteres.')
-
     const trip = await mutate(
       api<ApiTrip>('/trips', {
         method: 'POST',
-        body: {
-          colonia: origin,
-          destination,
-          routeDescription: route || undefined,
-          departureTime: toDepartureTime(input.date, input.time),
-          seatsTotal: input.seatsTotal,
-          meetingPoint: meetingPoint || undefined,
-        },
+        body: { ...body, departureTime: toDepartureTime(input.date, input.time) },
       }),
     )
+    return toView(trip, user)
+  },
+
+  /** Publishes the driver's whole week: the Lambda reads their schedule, but only shares arrival and departure times. */
+  async publishWeeklyTrip(user: User, input: PublishWeeklyTripInput): Promise<TripView> {
+    const trip = await mutate(api<ApiTrip>('/trips', { method: 'POST', body: { ...tripBody(input), kind: 'weekly' } }))
     return toView(trip, user)
   },
 

@@ -143,7 +143,7 @@ function DriverActions({ user, trip }: { user: User; trip: TripView }) {
             onClick={() => run('complete', () => tripService.completeTrip(user, trip.id), 'Viaje completado.')}
           >
             <Spinner show={pending === 'complete'} />
-            Completar viaje
+            {trip.kind === 'weekly' ? 'Terminar la semana' : 'Completar viaje'}
           </Button>
         )}
       </div>
@@ -196,6 +196,7 @@ function PassengerActions({ user, trip }: { user: User; trip: TripView }) {
   const [open, setOpen] = useState(false)
   const [consent, setConsent] = useState(false)
   const req = trip.myRequest
+  const weekly = trip.kind === 'weekly'
   const canRequest =
     trip.storedStatus === 'publicado' && trip.seatsAvailable > 0 && (!req || req.status === 'cancelled' || req.status === 'rejected')
 
@@ -218,7 +219,7 @@ function PassengerActions({ user, trip }: { user: User; trip: TripView }) {
       )}
       {canRequest && (
         <Button className="h-12 text-base" onClick={() => setOpen(true)}>
-          Solicitar lugar
+          {weekly ? 'Solicitar unirme a su semana' : 'Solicitar lugar'}
         </Button>
       )}
       {trip.storedStatus === 'publicado' && trip.seatsAvailable === 0 && !req && (
@@ -232,22 +233,24 @@ function PassengerActions({ user, trip }: { user: User; trip: TripView }) {
           onClick={() => run('cancel-req', () => tripService.cancelRequest(user, req.id), 'Solicitud cancelada.')}
         >
           <Spinner show={pending === 'cancel-req'} />
-          {req.status === 'pending' ? 'Cancelar solicitud' : 'Ya no voy en este viaje'}
+          {req.status === 'pending' ? 'Cancelar solicitud' : weekly ? 'Ya no voy en esta semana' : 'Ya no voy en este viaje'}
         </Button>
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Solicitar lugar</DialogTitle>
+            <DialogTitle>{weekly ? 'Unirme a su semana' : 'Solicitar lugar'}</DialogTitle>
             <DialogDescription className="leading-relaxed">
-              Si el conductor acepta, verá tu nombre completo, foto y colonia. Tú verás el punto de encuentro y la hora de recogida.
+              {weekly
+                ? 'Pides un lugar para toda la semana, en los días y horas que publicó. Si el conductor acepta, verá tu nombre completo, foto y colonia, y tú verás el punto de encuentro.'
+                : 'Si el conductor acepta, verá tu nombre completo, foto y colonia. Tú verás el punto de encuentro y la hora de recogida.'}{' '}
               Nunca compartimos tu dirección.
             </DialogDescription>
           </DialogHeader>
           <label className="flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm leading-relaxed">
             <Checkbox checked={consent} onCheckedChange={(v) => setConsent(v === true)} className="mt-0.5" />
-            Acepto compartir estos datos con el conductor solo para este viaje.
+            Acepto compartir estos datos con el conductor solo para {weekly ? 'estos viajes' : 'este viaje'}.
           </label>
           <DialogFooter>
             <Button variant="outline" className="h-11" onClick={() => setOpen(false)}>

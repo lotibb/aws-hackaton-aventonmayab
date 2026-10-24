@@ -24,6 +24,7 @@ Todas las rutas requieren `Authorization: Bearer <token>`, con el token de `auth
 | --- | --- | --- |
 | `GET /trips?colonia=&from=` | | Viajes `Disponible` de otros conductores, con lugares y ordenados por hora. Incluye `driver` y `myRequest`. `from` (ISO) es opcional; por defecto, ahora |
 | `POST /trips` | `{ colonia, departureTime, seatsTotal (1-8), destination?, meetingPoint?, routeDescription? }` | El viaje creado; el origen y destino aceptan texto libre |
+| `POST /trips` (semanal) | `{ kind: "weekly", colonia, seatsTotal (1-8), destination?, meetingPoint?, routeDescription? }` | Viaje de toda la semana. La Lambda toma del horario del conductor la hora de su primera clase y el fin de la última de cada día (`days`); no publica materias ni salones. 400 si no tiene clases |
 | `GET /trips/{tripId}` | | Viaje + `myRequest`. El conductor recibe además `requests`. 404 si nunca pediste lugar y el viaje ya no está `Disponible` |
 | `GET /me/trips` | | `{ asDriver: [{ ...viaje, requests }], asPassenger: [{ ...viaje, myRequest }] }` |
 | `POST /trips/{tripId}/requests` | `{ consent: true }` | Solicitud `pending`. Sin consentimiento, 400 |
@@ -34,6 +35,8 @@ Todas las rutas requieren `Authorization: Bearer <token>`, con el token de `auth
 | `POST /trips/{tripId}/status` | `{ status: "Finalizado" \| "Cancelado" }` | Solo el conductor. Completar el viaje rechaza solicitudes que sigan pendientes |
 
 Viaje: `{ tripId, driverId, driver, colonia, destination?, routeDescription?, departureTime, seatsTotal, seatsLeft, meetingPoint?, status, createdAt, myRequest, requests? }`
+
+Un viaje semanal además trae `kind: "weekly"` y `days: [{ day (1=lunes … 7=domingo), arriveBy, leaveAt }]`; su `departureTime` es la fecha de publicación y aparece en `GET /trips` mientras siga `Disponible`. Un lugar aceptado es para toda la semana.
 
 Solicitud: `{ tripId, passengerId, status, consentGivenAt, createdAt, updatedAt, passenger? }`
 

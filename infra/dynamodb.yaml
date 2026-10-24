@@ -1,0 +1,112 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Aventon Mayab - DynamoDB tables (on-demand billing)
+
+# userId is always the Cognito "sub".
+Resources:
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: aventon-users
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+
+  TripsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: aventon-trips
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: tripId
+          AttributeType: S
+        - AttributeName: colonia
+          AttributeType: S
+        - AttributeName: departureTime
+          AttributeType: S
+      KeySchema:
+        - AttributeName: tripId
+          KeyType: HASH
+      # Passenger search: trips from a colonia, sorted by departure time.
+      GlobalSecondaryIndexes:
+        - IndexName: byColonia
+          KeySchema:
+            - AttributeName: colonia
+              KeyType: HASH
+            - AttributeName: departureTime
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  SeatRequestsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: aventon-seat-requests
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: tripId
+          AttributeType: S
+        - AttributeName: passengerId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: tripId
+          KeyType: HASH
+        - AttributeName: passengerId
+          KeyType: RANGE
+
+  ParkingZonesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: aventon-parking-zones
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: zoneId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: zoneId
+          KeyType: HASH
+
+  ParkingSessionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: aventon-parking-sessions
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+
+  SchedulesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: aventon-schedules
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: slotId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: slotId
+          KeyType: RANGE
+
+Outputs:
+  UsersTable:
+    Value: !Ref UsersTable
+  TripsTable:
+    Value: !Ref TripsTable
+  SeatRequestsTable:
+    Value: !Ref SeatRequestsTable
+  ParkingZonesTable:
+    Value: !Ref ParkingZonesTable
+  ParkingSessionsTable:
+    Value: !Ref ParkingSessionsTable
+  SchedulesTable:
+    Value: !Ref SchedulesTable

@@ -8,6 +8,8 @@ Todo en **us-east-1**, cuenta `587601006525`. Son tres stacks de CloudFormation;
 | `aventon-mayab-data` | `infra/dynamodb.yaml` | 6 tablas de DynamoDB |
 | `aventon-mayab-backend` | `template.yaml` + `src/` | Lambdas con las reglas (y API Gateway desde el Paso 5) |
 
+`smartparking/` es un módulo aparte (CDK, stack `MayabParking`) con sus propias tablas y API; se despliega desde esa carpeta, ver su [README](smartparking/README.md).
+
 ## Desplegar
 
 Requiere la [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) y, para el último stack, la [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html). Desde `backend/`:

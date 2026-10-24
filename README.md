@@ -25,7 +25,8 @@ El frontend nunca habla directo con la base de datos y no necesita llaves de AWS
 │   ├── src/               Código de las Lambdas (Node.js 22)
 │   ├── tests/             Prueba de integración contra AWS
 │   ├── template.yaml      Lambdas (y API Gateway desde el Paso 5)
-│   └── samconfig.toml     Configuración de `sam deploy`
+│   ├── samconfig.toml     Configuración de `sam deploy`
+│   └── smartparking/      Módulo de Smart Parking (CDK, se despliega aparte)
 └── docs/
     └── api.md             Rutas de la API para el frontend
 ```
@@ -33,6 +34,12 @@ El frontend nunca habla directo con la base de datos y no necesita llaves de AWS
 - [`frontend/README.md`](frontend/README.md): cómo agregar la app y configurar Vercel.
 - [`backend/README.md`](backend/README.md): cómo desplegar y probar.
 - [`docs/api.md`](docs/api.md): la API.
+
+## Backend de Smart Parking
+
+El módulo está en [`backend/smartparking/`](backend/smartparking/). Incluye la API de zonas, entradas y salidas, infraestructura AWS CDK, pruebas y el contrato para el frontend TSX. Ejecuta sus comandos desde esa carpeta; consulta su [guía de desarrollo y despliegue](backend/smartparking/README.md).
+
+Smart Parking requiere el **access token** de Cognito: el `authService.getToken()` actual devuelve un ID token, por lo que para este módulo se debe obtener `tokens.accessToken` mediante `fetchAuthSession()`, como muestra su README. El stack CDK crea tablas propias; todavía no reutiliza las tablas de parking del stack `aventon-mayab-data` (`backend/infra/dynamodb.yaml`).
 
 ## Avance
 

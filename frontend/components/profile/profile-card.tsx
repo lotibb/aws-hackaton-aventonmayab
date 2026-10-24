@@ -9,6 +9,7 @@ import { UserAvatar } from '@/components/shared/user-avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { formatPhone, normalizePhone } from '@/lib/format'
 import { errorMessage, userService } from '@/lib/services'
 import type { Colonia, User } from '@/lib/types'
 
@@ -18,10 +19,12 @@ const AVATAR_SIZE = 256
 export function ProfileCard({ user }: { user: User }) {
   const { mutate } = useSWRConfig()
   const [fullName, setFullName] = useState(user.fullName)
+  const [phone, setPhone] = useState(user.phone ? formatPhone(user.phone) : '')
   const [colonia, setColonia] = useState<Colonia | undefined>(user.colonia)
   const [saving, setSaving] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
-  const dirty = fullName.trim() !== user.fullName || colonia !== user.colonia
+  const phoneDigits = normalizePhone(phone)
+  const dirty = fullName.trim() !== user.fullName || colonia !== user.colonia || phoneDigits !== (user.phone ?? null)
 
   async function update(patch: Parameters<typeof userService.updateProfile>[1], success: string) {
     setSaving(true)
@@ -86,7 +89,8 @@ export function ProfileCard({ user }: { user: User }) {
         className="flex flex-col gap-4"
         onSubmit={(e) => {
           e.preventDefault()
-          update({ fullName: fullName.trim(), colonia }, 'Perfil actualizado.')
+          if (!phoneDigits) return toast.error('Escribe tu celular a 10 dígitos.')
+          update({ fullName: fullName.trim(), phone: phoneDigits, colonia }, 'Perfil actualizado.')
         }}
       >
         <div className="flex flex-col gap-2">
@@ -99,6 +103,23 @@ export function ProfileCard({ user }: { user: User }) {
             <Input id="email" value={user.email} readOnly aria-readonly="true" className="h-12 bg-muted pr-10 text-base text-muted-foreground md:text-base" />
             <Lock className="absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           </div>
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="phone">Celular</Label>
+          <Input
+            id="phone"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel-national"
+            placeholder="999 123 4567"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            aria-describedby="phone-hint"
+            className="h-12 text-base md:text-base"
+          />
+          <p id="phone-hint" className={user.phone ? 'text-xs text-muted-foreground' : 'text-sm text-primary'}>
+            {user.phone ? 'Tu medio de contacto. No se muestra a desconocidos.' : 'Agrega tu celular para completar tu perfil.'}
+          </p>
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="colonia">Colonia</Label>

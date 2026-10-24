@@ -36,6 +36,15 @@ const query = (TableName, IndexName, key, value) =>
     )
     .then((r) => r.Items);
 
+// Mexican mobile numbers: 10 digits, with or without +52 / 521, spaces or dashes.
+function optionalPhone(value) {
+  if (value === undefined || value === null || value === "") return undefined;
+  const digits = typeof value === "string" ? value.replace(/\D/g, "") : "";
+  const national = digits.length > 10 && /^521?/.test(digits) ? digits.replace(/^521?/, "") : digits;
+  if (national.length !== 10) throw new HttpError(400, "Teléfono inválido, usa 10 dígitos");
+  return national;
+}
+
 const remove = (TableName, Key) => db.send(new DeleteCommand({ TableName, Key }));
 
 // GET /me
@@ -47,7 +56,7 @@ async function getProfile(event) {
   return Item ?? { userId: me.userId, email: me.email };
 }
 
-// PUT /me  { name, colonia, photoUrl, activeMode, privacyAcceptedAt }  Replaces the whole profile.
+// PUT /me  { name, colonia, phone, photoUrl, activeMode, privacyAcceptedAt }  Replaces the whole profile.
 async function saveProfile(event) {
   const me = caller(event);
   const body = readBody(event);
@@ -63,6 +72,7 @@ async function saveProfile(event) {
     email: me.email,
     name: optionalText(body.name, "Nombre", 80),
     colonia: optionalText(body.colonia, "Colonia", 80),
+    phone: optionalPhone(body.phone),
     // A small, resized image (data URL); the frontend shrinks photos before sending them.
     photoUrl: optionalText(body.photoUrl, "Foto", 200_000),
     activeMode: body.activeMode,

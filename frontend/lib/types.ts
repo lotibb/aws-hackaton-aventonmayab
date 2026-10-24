@@ -20,6 +20,8 @@ export interface User {
   id: string
   email: string
   fullName: string
+  /** 10-digit mobile number. Accounts created before it was required may not have it. */
+  phone?: string
   photoUrl?: string
   colonia: Colonia
   activeMode: UserMode

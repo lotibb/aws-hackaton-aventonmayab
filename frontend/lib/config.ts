@@ -44,6 +44,11 @@ export function trafficLightFor(percentage: number): TrafficLight {
 export const REVIEW_DISCREPANCY = 0.1
 
 export const BUILDINGS = [
+  'Central',
+  'LIIET',
+  'Edificio 5',
+  'Salud I',
+  'Salud II',
   'Rectoría',
   'Biblioteca',
   'Ingenierías',

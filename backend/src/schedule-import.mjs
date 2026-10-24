@@ -19,7 +19,7 @@ Devuelve cada sesión semanal de clase como un elemento de "classes". Si una mat
 - room: salón o aula tal como aparece (por ejemplo "A-204"); null si no aparece.
 - building: el edificio de la lista que corresponda al salón o a la materia solo si es claro; si no, null.
 
-El horario oficial de la Anáhuac Mayab ("Mi Plan A - Horario actual") es una cuadrícula con una columna por día. Cada bloque trae "HH:MM - HH:MM", la materia (a veces abreviada, por ejemplo "Programació dispositiv móviles"), la clave (ISOC1408, SIS3403), el NRC, el salón (1231, SALA_HP1) y el código del edificio (SALUD2, EDIF5, LIIET). Toma el día de la columna donde está el bloque, no del orden del texto. Ignora la clave y el NRC. En room pon el código del edificio y el salón, por ejemplo "SALUD2 1231". Usa building solo si el código corresponde con claridad a un edificio de la lista (SALUD → Ciencias de la Salud).
+El horario oficial de la Anáhuac Mayab ("Mi Plan A - Horario actual") es una cuadrícula con una columna por día. Cada bloque trae "HH:MM - HH:MM", la materia (a veces abreviada, por ejemplo "Programació dispositiv móviles"), la clave (ISOC1408, SIS3403), el NRC, el salón (1231, SALA_HP1) y el código del edificio (SALUD2, EDIF5, LIIET). Toma el día de la columna donde está el bloque, no del orden del texto. Ignora la clave y el NRC. En room pon solo el salón. Mapea SALUD1 a Salud I, SALUD2 a Salud II, CNTRAL a Central, EDIF5 a Edificio 5 y LIIET a LIIET cuando aparezcan en la lista de edificios.
 
 No inventes clases. Ignora exámenes, fechas de periodo, días festivos y actividades sin día y hora fijos. Si el archivo no es un horario de clases, devuelve "classes" vacío.`;
 
@@ -52,7 +52,7 @@ const pad = (time) => {
 const text = (value, max) => (typeof value === "string" && value.trim() ? value.trim().slice(0, max) : undefined);
 
 // POST /me/schedule/import  { file: base64, mediaType, buildings? }
-// Reads the timetable with Claude and returns the classes it found. Nothing is saved:
+// Reads the official PDF text layer first, then uses Claude for other files. Nothing is saved:
 // the student reviews them and saves them like any other class.
 async function importSchedule(event) {
   const { file, mediaType, buildings: rawBuildings } = readBody(event);
@@ -60,6 +60,16 @@ async function importSchedule(event) {
   if (!MEDIA_TYPES.includes(mediaType)) throw new HttpError(400, "Sube un PDF o una imagen JPG, PNG o WebP");
   if (typeof file !== "string" || !file) throw new HttpError(400, "Falta el archivo");
   if (file.length > MAX_BASE64) throw new HttpError(400, "El archivo es demasiado grande, el máximo es 4 MB");
+
+  if (mediaType === "application/pdf") {
+    try {
+      const { extractAnahuacSchedulePdf } = await import("./schedule-pdf.mjs");
+      const classes = await extractAnahuacSchedulePdf(file);
+      if (classes.length) return { classes };
+    } catch (error) {
+      console.warn("No se pudo leer la capa de texto del PDF; se intentará la lectura visual", error);
+    }
+  }
 
   const source = { type: "base64", media_type: mediaType, data: file };
   let response;

@@ -4,6 +4,7 @@
   "private": true,
   "description": "Dependencies for the Lambdas; sam build installs them. The AWS SDK comes with the Node.js runtime.",
   "dependencies": {
-    "@anthropic-ai/bedrock-sdk": "0.34.4"
+    "@anthropic-ai/bedrock-sdk": "0.34.4",
+    "pdfjs-dist": "6.4.299"
   }
 }

@@ -8,6 +8,10 @@ Celular → Vercel → API Gateway (JWT de Cognito) → Lambda → DynamoDB
 
 Región: **us-east-1** para todo.
 
+## Aplicación frontend
+
+El proyecto Next.js/TSX está en [`Frontend/`](Frontend/). Consulta su [README](Frontend/README.md) para desarrollo, variables de entorno y build. En Vercel usa `Frontend` como Root Directory.
+
 ## Backend de Smart Parking
 
 El módulo está en [`backend/smartparking/`](backend/smartparking/). Incluye la API de zonas, entradas y salidas, infraestructura AWS CDK, pruebas y el contrato para el frontend TSX. Ejecuta sus comandos desde esa carpeta; consulta su [guía de desarrollo y despliegue](backend/smartparking/README.md).
@@ -57,7 +61,7 @@ aws cloudformation describe-stacks --region us-east-1 \
 ### Conectar el frontend
 
 1. En el proyecto de Vercel: `npm install aws-amplify`.
-2. Copia `frontend/lib/services/authService.ts` sobre el mock en `/lib/services`.
+2. La integración está en `Frontend/lib/services/authService.ts`.
 3. Variables de entorno en Vercel (y en `.env.local`). Estos valores pueden ser públicos:
 
    ```

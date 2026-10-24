@@ -179,6 +179,27 @@ check("own schedule", len(call("profile", "GET /me/schedule", P[0])[1]) == 1)
 check("other student sees only their own (empty)", call("profile", "GET /me/schedule", P[1])[1] == [])
 check("delete slot", call("profile", "DELETE /me/schedule/{slotId}", P[0], path={"slotId": "lun-1"})[0] == 200)
 
+print("== Weekly trips (the driver's whole week of classes)")
+check("weekly trip without classes -> 400", call("trips", "POST /trips", D, body={"colonia": colonia, "kind": "weekly", "seatsTotal": 2})[0] == 400)
+classes = [("w1", 1, "07:00", "08:30"), ("w2", 1, "11:30", "13:00"), ("w3", 3, "08:30", "10:00")]
+for slot, day, start, end in classes:
+    call("profile", "PUT /me/schedule/{slotId}", D, path={"slotId": slot}, body={"day": day, "start": start, "end": end, "subject": "Materia secreta", "building": "Ingenierías"})
+s, wk = call("trips", "POST /trips", D, body={"colonia": colonia, "kind": "weekly", "seatsTotal": 2})
+check("create weekly trip: first class and last class per day", s == 200 and wk.get("kind") == "weekly" and wk.get("days") == [
+    {"day": 1, "arriveBy": "07:00", "leaveAt": "13:00"}, {"day": 3, "arriveBy": "08:30", "leaveAt": "10:00"}], wk)
+check("weekly trip doesn't publish subjects or buildings", "Materia secreta" not in json.dumps(wk) and "Ingenierías" not in json.dumps(wk), wk)
+later = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 3 * 86400))
+s, lst = call("trips", "GET /trips", P[0], qs={"from": later})
+check("weekly trip is listed whatever the date", s == 200 and wk["tripId"] in [t["tripId"] for t in lst], lst)
+s, lst = call("trips", "GET /trips", P[0], qs={"colonia": colonia, "from": later})
+check("weekly trip is listed in its colonia", s == 200 and [t["tripId"] for t in lst] == [wk["tripId"]], lst)
+check("ask to join the week", call("trips", "POST /trips/{tripId}/requests", P[0], path={"tripId": wk["tripId"]}, body={"consent": True})[0] == 200)
+check("driver accepts for the week", call("trips", "POST /trips/{tripId}/requests/{passengerId}/accept", D, path={"tripId": wk["tripId"], "passengerId": P[0]})[0] == 200)
+s, b = call("trips", "GET /trips/{tripId}", P[0], path={"tripId": wk["tripId"]})
+check("passenger sees the week and their seat", s == 200 and b["seatsLeft"] == 1 and b["myRequest"]["status"] == "accepted" and len(b["days"]) == 2, b)
+for slot, *_ in classes:
+    call("profile", "DELETE /me/schedule/{slotId}", D, path={"slotId": slot})
+
 print("== Account deletion (real Cognito user)")
 email = f"claude.borrar.{RUN}@anahuac.mx"
 user = cog.admin_create_user(UserPoolId=POOL, Username=email, MessageAction="SUPPRESS",

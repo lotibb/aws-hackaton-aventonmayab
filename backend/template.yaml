@@ -6,6 +6,13 @@ Parameters:
   UserPoolId:
     Type: String
     Description: Cognito User Pool ID (output of the aventon-mayab-auth stack)
+  UserPoolClientId:
+    Type: String
+    Description: Cognito App Client ID (output of the aventon-mayab-auth stack)
+  AllowedOrigins:
+    Type: CommaDelimitedList
+    Default: "*"
+    Description: Frontend origins allowed by CORS, e.g. https://my-app.vercel.app,http://localhost:3000
 
 Globals:
   Function:
@@ -25,11 +32,50 @@ Globals:
         SCHEDULES_TABLE: aventon-schedules
 
 Resources:
+  # Every route requires a valid Cognito token; the student's ID comes from it.
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Auth:
+        DefaultAuthorizer: CognitoJwt
+        Authorizers:
+          CognitoJwt:
+            IdentitySource: $request.header.Authorization
+            JwtConfiguration:
+              issuer: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPoolId}
+              audience:
+                - !Ref UserPoolClientId
+      CorsConfiguration:
+        AllowOrigins: !Ref AllowedOrigins
+        AllowHeaders:
+          - authorization
+          - content-type
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+        MaxAge: 600
+      # Caps requests per second so a bug or abuse can't run up the bill.
+      DefaultRouteSettings:
+        ThrottlingRateLimit: 50
+        ThrottlingBurstLimit: 100
+
   TripsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: aventon-trips
       Handler: trips.handler
+      Events:
+        ListTrips: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: GET, Path: /trips } }
+        CreateTrip: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: /trips } }
+        GetTrip: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: GET, Path: "/trips/{tripId}" } }
+        MyTrips: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: GET, Path: /me/trips } }
+        RequestSeat: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/trips/{tripId}/requests" } }
+        CancelRequest: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: DELETE, Path: "/trips/{tripId}/requests" } }
+        AcceptRequest: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/trips/{tripId}/requests/{passengerId}/accept" } }
+        RejectRequest: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/trips/{tripId}/requests/{passengerId}/reject" } }
+        SetTripStatus: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/trips/{tripId}/status" } }
       Policies:
         - DynamoDBCrudPolicy:
             TableName: aventon-trips
@@ -43,6 +89,11 @@ Resources:
     Properties:
       FunctionName: aventon-parking
       Handler: parking.handler
+      Events:
+        ListZones: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: GET, Path: /parking/zones } }
+        MySession: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: GET, Path: /parking/session } }
+        Entry: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: /parking/entry } }
+        Exit: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: /parking/exit } }
       Policies:
         - DynamoDBReadPolicy:
             TableName: aventon-parking-zones
@@ -58,6 +109,13 @@ Resources:
       Environment:
         Variables:
           USER_POOL_ID: !Ref UserPoolId
+      Events:
+        GetProfile: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: GET, Path: /me } }
+        SaveProfile: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: PUT, Path: /me } }
+        DeleteAccount: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: DELETE, Path: /me } }
+        GetSchedule: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: GET, Path: /me/schedule } }
+        SaveSlot: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: PUT, Path: "/me/schedule/{slotId}" } }
+        DeleteSlot: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: DELETE, Path: "/me/schedule/{slotId}" } }
       Policies:
         - DynamoDBCrudPolicy:
             TableName: aventon-users
@@ -75,6 +133,9 @@ Resources:
               Resource: !Sub arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPoolId}
 
 Outputs:
+  ApiUrl:
+    Description: NEXT_PUBLIC_API_URL for the frontend
+    Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com
   TripsFunctionArn:
     Value: !GetAtt TripsFunction.Arn
   ParkingFunctionArn:

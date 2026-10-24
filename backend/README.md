@@ -6,7 +6,7 @@ Todo en **us-east-1**, cuenta `587601006525`. Son tres stacks de CloudFormation;
 | --- | --- | --- |
 | `aventon-mayab-auth` | `infra/cognito.yaml` | Cognito: login con correo, código de 6 dígitos por email y solo `@anahuac.mx` |
 | `aventon-mayab-data` | `infra/dynamodb.yaml` | 6 tablas de DynamoDB |
-| `aventon-mayab-backend` | `template.yaml` + `src/` | Lambdas con las reglas (y API Gateway desde el Paso 5) |
+| `aventon-mayab-backend` | `template.yaml` + `src/` | API Gateway + Lambdas con las reglas |
 
 `smartparking/` es un módulo aparte (CDK, stack `MayabParking`) con sus propias tablas y API; se despliega desde esa carpeta, ver su [README](smartparking/README.md).
 
@@ -54,6 +54,14 @@ Todas son on-demand: se paga por uso, centavos en una demo.
 | `aventon-schedules` | `userId` + `slotId` | | horario de clases (privado) |
 
 `userId` siempre es el `sub` de Cognito.
+
+## API Gateway (`template.yaml`)
+
+URL: `https://zdm8p9cfd7.execute-api.us-east-1.amazonaws.com` (output `ApiUrl`).
+
+- **HTTP API** con un authorizer JWT de Cognito en todas las rutas: sin token válido responde 401 antes de llegar a las Lambdas.
+- **CORS:** el parámetro `AllowedOrigins` de `samconfig.toml`. Hoy es `*`. Cuando exista el dominio de Vercel, cámbialo a `https://TU-APP.vercel.app,http://localhost:3000` y vuelve a correr `sam deploy`.
+- **Límite:** 50 solicitudes por segundo (ráfagas de 100), para que un error o abuso no dispare el costo.
 
 ## Lambdas (`src/`)
 

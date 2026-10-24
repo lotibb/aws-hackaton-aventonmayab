@@ -2,10 +2,12 @@
 
 App para estudiantes de la Anáhuac Mayab: aventones entre compañeros y disponibilidad del estacionamiento. Proyecto para el hackathon de AWS.
 
+**App:** __FRONTEND_URL__
+
 ## Arquitectura
 
 ```
-Celular → Vercel (frontend/) → API Gateway → Lambda (backend/src/) → DynamoDB
+Celular → CloudFront + S3 (frontend/) → API Gateway → Lambda (backend/src/) → DynamoDB
                                     ↑
                      Cognito: login solo con @anahuac.mx
 
@@ -17,13 +19,13 @@ El frontend nunca habla directo con la base de datos y no necesita llaves de AWS
 ## Estructura
 
 ```
-├── frontend/              App web (Next.js en Vercel, Root Directory = frontend)
+├── frontend/              App web (Next.js estático en S3 + CloudFront; `deploy-aws.sh` la publica)
 │   ├── app/               Páginas
 │   ├── components/        Componentes de UI
 │   ├── lib/services/      authService.ts (Cognito), api.ts (llamadas a la API) y servicios
-│   └── .env.example       Variables para Vercel
+│   └── .env.example       Valores públicos (Cognito, URL de la API) que se incluyen en el build
 ├── backend/               Todo lo de AWS
-│   ├── infra/             Cognito y tablas de DynamoDB
+│   ├── infra/             Cognito, tablas de DynamoDB y hosting del frontend
 │   ├── src/               Código de las Lambdas (Node.js 22)
 │   ├── tests/             Prueba de integración contra AWS
 │   ├── template.yaml      API Gateway + Lambdas
@@ -33,7 +35,7 @@ El frontend nunca habla directo con la base de datos y no necesita llaves de AWS
     └── api.md             Rutas de la API para el frontend
 ```
 
-- [`frontend/README.md`](frontend/README.md): cómo correr la app y configurar Vercel.
+- [`frontend/README.md`](frontend/README.md): cómo correr la app y publicarla en AWS.
 - [`backend/README.md`](backend/README.md): cómo desplegar y probar.
 - [`docs/api.md`](docs/api.md): la API.
 

@@ -51,7 +51,7 @@ export function PublishTripForm() {
         meetingPointId,
       })
       toast.success('Viaje publicado.')
-      router.replace(`/viajes/${trip.id}`)
+      router.replace(`/viajes/detalle?id=${encodeURIComponent(trip.id)}`)
     } catch (err) {
       setError(errorMessage(err))
       setPending(false)

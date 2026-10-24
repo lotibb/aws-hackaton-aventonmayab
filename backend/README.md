@@ -1,12 +1,13 @@
 # Backend (AWS)
 
-Todo en **us-east-1**, cuenta `587601006525`. Son tres stacks de CloudFormation; se despliegan en este orden.
+Todo en **us-east-1**, cuenta `587601006525`. Son cuatro stacks de CloudFormation; se despliegan en este orden.
 
 | Stack | Archivo | Qué crea |
 | --- | --- | --- |
 | `aventon-mayab-auth` | `infra/cognito.yaml` | Cognito: login con correo, código de 6 dígitos por email y solo `@anahuac.mx` |
 | `aventon-mayab-data` | `infra/dynamodb.yaml` | 6 tablas de DynamoDB |
 | `aventon-mayab-backend` | `template.yaml` + `src/` | API Gateway + Lambdas con las reglas |
+| `aventon-mayab-frontend` | `infra/frontend.yaml` | Bucket privado de S3 + CloudFront para la app web (se publica con `frontend/deploy-aws.sh`) |
 
 `smartparking/` es un módulo aparte (CDK, stack `MayabParking`) con sus propias tablas y API; se despliega desde esa carpeta, ver su [README](smartparking/README.md).
 
@@ -22,6 +23,10 @@ aws cloudformation deploy --region us-east-1 --template-file infra/dynamodb.yaml
   --stack-name aventon-mayab-data
 
 sam deploy   # usa samconfig.toml
+
+aws cloudformation deploy --region us-east-1 --template-file infra/frontend.yaml \
+  --stack-name aventon-mayab-frontend
+../frontend/deploy-aws.sh
 ```
 
 Los dos primeros también se pueden desplegar subiendo el archivo en la consola: CloudFormation → Create stack → Upload a template file.
@@ -60,7 +65,7 @@ Todas son on-demand: se paga por uso, centavos en una demo.
 URL: `https://zdm8p9cfd7.execute-api.us-east-1.amazonaws.com` (output `ApiUrl`).
 
 - **HTTP API** con un authorizer JWT de Cognito en todas las rutas: sin token válido responde 401 antes de llegar a las Lambdas.
-- **CORS:** el parámetro `AllowedOrigins` de `samconfig.toml`. Hoy es `*`. Cuando exista el dominio de Vercel, cámbialo a `https://TU-APP.vercel.app,http://localhost:3000` y vuelve a correr `sam deploy`.
+- **CORS:** el parámetro `AllowedOrigins` de `samconfig.toml`: solo la app publicada (`__FRONTEND_URL__`) y `http://localhost:3000` para desarrollo. Si agregas otro dominio, súmalo ahí y corre `sam deploy`.
 - **Límite:** 50 solicitudes por segundo (ráfagas de 100), para que un error o abuso no dispare el costo.
 
 ## Lambdas (`src/`)

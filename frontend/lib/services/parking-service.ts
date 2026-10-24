@@ -1,42 +1,10 @@
-import { PARKING_ZONES, REVIEW_DISCREPANCY, getZone, trafficLightFor } from '../config'
+import { PARKING_ZONES, getZone, trafficLightFor } from '../config'
 import { WEEKDAYS, minutesToTime, timeToMinutes } from '../format'
-import { createId, readDb, writeDb } from '../mock/db'
-import type { DbState } from '../mock/seed'
 import { aggregateSchedules, buildForecast, projectPercentage } from '../projections'
 import type { ParkingEvent, TrafficLight, User, ZoneForecast, ZoneId, ZoneOccupancy } from '../types'
-import { ServiceError } from './errors'
-
-function computeOccupancy(db: DbState, zoneId: ZoneId): ZoneOccupancy {
-  const zone = getZone(zoneId)
-  const counters = db.sensorCounters[zoneId]
-  const sensorStatus = db.sensorStatus[zoneId]
-  // Occupancy = entries − exits, clamped to [0, capacity].
-  const sensorOccupied = Math.min(zone.capacity, Math.max(0, counters.entries - counters.exits))
-  const manualEstimate = Math.min(zone.capacity, Math.max(0, db.manualEstimates[zoneId]))
-  const occupied = sensorStatus.online ? sensorOccupied : manualEstimate
-  const percentage = Math.round((occupied / zone.capacity) * 100)
-  const inReview = sensorStatus.online && Math.abs(sensorOccupied - manualEstimate) / zone.capacity > REVIEW_DISCREPANCY
-
-  return {
-    zone,
-    occupied,
-    percentage,
-    light: trafficLightFor(percentage),
-    source: sensorStatus.online ? 'simulado' : 'estimado',
-    sensorStatus,
-    sensorOccupied,
-    manualEstimate,
-    inReview,
-  }
-}
-
-function latestEventFor(db: DbState, userId: string): ParkingEvent | undefined {
-  return db.parkingEvents
-    .filter((e) => e.userId === userId)
-    // Events appended in the same millisecond must prefer the latest action.
-    .reverse()
-    .sort((a, b) => b.timestamp.localeCompare(a.timestamp))[0]
-}
+import { api } from './api'
+import { toOccupancies, toParkingEntry, type ApiParkingSession, type ApiParkingZone } from './parking-api'
+import { userService } from './user-service'
 
 export interface ParkingRecommendation {
   message: string
@@ -55,42 +23,30 @@ export interface PersonalInsight {
 export const parkingService = {
   /** Aggregate counts only — never who is parked or which vehicle. */
   async getZonesOccupancy(_user: User): Promise<ZoneOccupancy[]> {
-    const db = readDb()
-    return PARKING_ZONES.map((z) => computeOccupancy(db, z.id))
+    return toOccupancies(await api<ApiParkingZone[]>('/parking/zones', { cache: 'no-store' }))
   },
 
   /** A student's own active entry. The authorizer scopes this query to the caller's userId. */
   async getMyActiveEntry(user: User): Promise<ParkingEvent | null> {
-    const latest = latestEventFor(readDb(), user.id)
-    return latest?.type === 'entrada' ? latest : null
+    const { session } = await api<{ session: ApiParkingSession | null }>('/parking/session', { cache: 'no-store' })
+    return toParkingEntry(session, user)
   },
 
-  async checkIn(user: User, zoneId: ZoneId): Promise<void> {
-    writeDb((db) => {
-      const latest = latestEventFor(db, user.id)
-      if (latest?.type === 'entrada') throw new ServiceError('CONFLICT', 'Ya tienes una entrada activa. Registra tu salida primero.')
-      db.parkingEvents.push({ id: createId('pe'), userId: user.id, zoneId, type: 'entrada', timestamp: new Date().toISOString() })
-      // The estimate is extrapolated from the sample of check-ins; each one nudges it.
-      db.manualEstimates[zoneId] = Math.min(getZone(zoneId).capacity, db.manualEstimates[zoneId] + 1)
-    })
+  async checkIn(_user: User, zoneId: ZoneId): Promise<void> {
+    await api('/parking/entry', { method: 'POST', body: { zoneId } })
   },
 
-  async checkOut(user: User): Promise<void> {
-    writeDb((db) => {
-      const latest = latestEventFor(db, user.id)
-      if (latest?.type !== 'entrada') throw new ServiceError('CONFLICT', 'No tienes una entrada activa.')
-      db.parkingEvents.push({ id: createId('pe'), userId: user.id, zoneId: latest.zoneId, type: 'salida', timestamp: new Date().toISOString() })
-      db.manualEstimates[latest.zoneId] = Math.max(0, db.manualEstimates[latest.zoneId] - 1)
-    })
+  async checkOut(_user: User): Promise<void> {
+    await api('/parking/exit', { method: 'POST' })
   },
 
-  async getForecast(_user: User, zoneId: ZoneId, weekday: number): Promise<ZoneForecast> {
-    const agg = aggregateSchedules(readDb().schedules)
+  async getForecast(user: User, zoneId: ZoneId, weekday: number): Promise<ZoneForecast> {
+    const agg = aggregateSchedules(await userService.listSchedules(user))
     return { zoneId, weekday, points: buildForecast(agg, zoneId, weekday), source: 'estimado' }
   },
 
-  async projectAt(_user: User, zoneId: ZoneId, weekday: number, time: string) {
-    const agg = aggregateSchedules(readDb().schedules)
+  async projectAt(user: User, zoneId: ZoneId, weekday: number, time: string) {
+    const agg = aggregateSchedules(await userService.listSchedules(user))
     const zone = getZone(zoneId)
     const percentage = projectPercentage(agg, zoneId, weekday, timeToMinutes(time))
     return {
@@ -100,8 +56,8 @@ export const parkingService = {
     }
   },
 
-  async getRecommendation(_user: User, zoneId: ZoneId, weekday: number): Promise<ParkingRecommendation> {
-    const agg = aggregateSchedules(readDb().schedules)
+  async getRecommendation(user: User, zoneId: ZoneId, weekday: number): Promise<ParkingRecommendation> {
+    const agg = aggregateSchedules(await userService.listSchedules(user))
     const zone = getZone(zoneId)
     let fullAt: number | undefined
     for (let m = 360; m <= 1260; m += 10) {
@@ -128,13 +84,13 @@ export const parkingService = {
 
   /** Uses the caller's own schedule only to personalize their view; never shared. */
   async getPersonalInsight(user: User, weekday: number): Promise<PersonalInsight | null> {
-    const db = readDb()
-    const mine = db.schedules
+    const schedules = await userService.listSchedules(user)
+    const mine = schedules
       .filter((s) => s.userId === user.id && s.weekday === weekday)
       .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start))
     const first = mine[0]
     if (!first) return null
-    const agg = aggregateSchedules(db.schedules)
+    const agg = aggregateSchedules(schedules)
     const arrivalMinutes = timeToMinutes(first.start) - 20
     const zones = PARKING_ZONES.map((z) => {
       const percentage = projectPercentage(agg, z.id, weekday, arrivalMinutes)

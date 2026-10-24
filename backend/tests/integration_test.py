@@ -143,7 +143,7 @@ check("passenger /me/trips", s == 200 and len(b["asPassenger"]) == 1 and b["asPa
 
 print("== Parking")
 zone = f"TEST-{RUN}"
-T["parking-zones"].put_item(Item={"zoneId": zone, "name": "Zona de prueba", "capacity": 50, "currentCount": 0})
+T["parking-zones"].put_item(Item={"zoneId": zone, "name": "Zona de prueba", "capacity": 50, "currentCount": 0, "registeredOccupied": 0})
 s, zones = call("parking", "GET /parking/zones", P[0])
 check("zones list has test zone, sensor offline", s == 200 and any(z["zoneId"] == zone and z["sensorOnline"] is False for z in zones), zones)
 check("unknown zone -> 404", call("parking", "POST /parking/entry", P[0], body={"zoneId": "nope"})[0] == 404)
@@ -152,12 +152,31 @@ with ThreadPoolExecutor(5) as pool:
 check("5 simultaneous entries -> exactly 1 succeeds", sum(1 for s, _ in results if s == 200) == 1 and sum(1 for s, _ in results if s == 409) == 4, results)
 s, b = call("parking", "GET /parking/session", P[0])
 check("active session", b["session"]["zoneId"] == zone, b)
+check("entry increments persistent count", T["parking-zones"].get_item(Key={"zoneId": zone}, ConsistentRead=True)["Item"]["registeredOccupied"] == 1)
 check("other student has no session", call("parking", "GET /parking/session", P[1])[1]["session"] is None)
 s, b = call("parking", "POST /parking/exit", P[0])
 check("exit", s == 200 and b["minutes"] == 0, b)
+check("exit decrements persistent count", T["parking-zones"].get_item(Key={"zoneId": zone}, ConsistentRead=True)["Item"]["registeredOccupied"] == 0)
 check("exit again -> 409", call("parking", "POST /parking/exit", P[0])[0] == 409)
 check("can enter again after exit", call("parking", "POST /parking/entry", P[0], body={"zoneId": zone})[0] == 200)
 call("parking", "POST /parking/exit", P[0])
+
+print("== Parking: last space and concurrent exits")
+T["parking-zones"].update_item(Key={"zoneId": zone}, UpdateExpression="SET #cap = :c",
+                               ExpressionAttributeNames={"#cap": "capacity"}, ExpressionAttributeValues={":c": 1})
+with ThreadPoolExecutor(5) as pool:
+    results = list(pool.map(lambda p: call("parking", "POST /parking/entry", p, body={"zoneId": zone}), P[:5]))
+winners = [P[i] for i, (status, _) in enumerate(results) if status == 200]
+check("one shared space admits exactly one student", len(winners) == 1, results)
+check("other students get 409", sum(1 for status, _ in results if status == 409) == 4, results)
+check("persistent count never exceeds capacity", T["parking-zones"].get_item(Key={"zoneId": zone}, ConsistentRead=True)["Item"]["registeredOccupied"] == 1)
+if winners:
+    with ThreadPoolExecutor(5) as pool:
+        exits = list(pool.map(lambda _: call("parking", "POST /parking/exit", winners[0]), range(5)))
+    check("parallel exits decrement once", sum(1 for status, _ in exits if status == 200) == 1, exits)
+check("persistent count returns to zero", T["parking-zones"].get_item(Key={"zoneId": zone}, ConsistentRead=True)["Item"]["registeredOccupied"] == 0)
+T["parking-zones"].update_item(Key={"zoneId": zone}, UpdateExpression="SET #cap = :c",
+                               ExpressionAttributeNames={"#cap": "capacity"}, ExpressionAttributeValues={":c": 50})
 
 print("== Schedules")
 s, b = call("profile", "PUT /me/schedule/{slotId}", P[0], path={"slotId": "lun-1"}, body={"day": 1, "start": "07:00", "end": "09:00", "subject": "Cálculo"})
@@ -187,6 +206,7 @@ check("DELETE /me", s == 200, b)
 check("profile gone", "Item" not in T["users"].get_item(Key={"userId": R}, ConsistentRead=True))
 check("schedule gone", T["schedules"].query(KeyConditionExpression="userId = :u", ExpressionAttributeValues={":u": R})["Count"] == 0)
 check("parking session gone", "Item" not in T["parking-sessions"].get_item(Key={"userId": R}, ConsistentRead=True))
+check("account deletion releases parking count", T["parking-zones"].get_item(Key={"zoneId": zone}, ConsistentRead=True)["Item"]["registeredOccupied"] == 0)
 check("their trip gone", "Item" not in T["trips"].get_item(Key={"tripId": rtrip["tripId"]}, ConsistentRead=True))
 check("requests on their trip gone", T["seat-requests"].query(KeyConditionExpression="tripId = :t", ExpressionAttributeValues={":t": rtrip["tripId"]})["Count"] == 0)
 check("their seat returned to the other trip", T["trips"].get_item(Key={"tripId": dtrip["tripId"]}, ConsistentRead=True)["Item"]["seatsLeft"] == 2)

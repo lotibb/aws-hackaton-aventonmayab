@@ -1,6 +1,6 @@
-import { getZone } from '../config'
+import { getZone, PARKING_ZONES, REVIEW_DISCREPANCY, trafficLightFor } from '../config'
 import { createId, readDb, writeDb } from '../mock/db'
-import type { SensorEvent, SensorStatus, SensorType, User, ZoneId } from '../types'
+import type { SensorEvent, SensorStatus, SensorType, User, ZoneId, ZoneOccupancy } from '../types'
 import { ServiceError } from './errors'
 
 const MAX_STORED_EVENTS = 400
@@ -13,6 +13,23 @@ const MAX_STORED_EVENTS = 400
  * Sensors only count cars: no plates, no images, no personal data.
  */
 export const sensorService = {
+  /** Isolated simulator data; never writes or replaces the real parking API. */
+  async getDemoZonesOccupancy(_user: User): Promise<ZoneOccupancy[]> {
+    const db = readDb()
+    return PARKING_ZONES.map((zone) => {
+      const counters = db.sensorCounters[zone.id]
+      const sensorStatus = db.sensorStatus[zone.id]
+      const sensorOccupied = Math.min(zone.capacity, Math.max(0, counters.entries - counters.exits))
+      const manualEstimate = Math.min(zone.capacity, Math.max(0, db.manualEstimates[zone.id]))
+      const occupied = sensorStatus.online ? sensorOccupied : manualEstimate
+      const percentage = Math.round(occupied / zone.capacity * 100)
+      return {
+        zone, sensorStatus, sensorOccupied, manualEstimate, occupied, percentage,
+        light: trafficLightFor(percentage), source: 'simulado',
+        inReview: sensorStatus.online && Math.abs(sensorOccupied - manualEstimate) / zone.capacity > REVIEW_DISCREPANCY,
+      }
+    })
+  },
   async getStatuses(_user: User): Promise<SensorStatus[]> {
     return Object.values(readDb().sensorStatus)
   },

@@ -100,6 +100,12 @@ Resources:
         Exit: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: /parking/exit } }
       Policies:
         - DynamoDBReadPolicy:
+            TableName: aventon-users
+        - Statement:
+            - Effect: Allow
+              Action: dynamodb:ConditionCheckItem
+              Resource: !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/aventon-users
+        - DynamoDBCrudPolicy:
             TableName: aventon-parking-zones
         - DynamoDBCrudPolicy:
             TableName: aventon-parking-sessions
@@ -131,6 +137,8 @@ Resources:
             TableName: aventon-seat-requests
         - DynamoDBCrudPolicy:
             TableName: aventon-parking-sessions
+        - DynamoDBCrudPolicy:
+            TableName: aventon-parking-zones
         - Statement:
             - Effect: Allow
               Action: cognito-idp:AdminDeleteUser

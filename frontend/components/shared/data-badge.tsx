@@ -6,6 +6,12 @@ import type { DataSource } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 const META: Record<DataSource, { label: string; description: string; icon: typeof Info; className: string }> = {
+  registrado: {
+    label: 'Registrado',
+    description: 'Entradas y salidas reales registradas por alumnos y guardadas en el servidor. No incluye vehículos sin registro. La capacidad puede ser estimada.',
+    icon: BadgeCheck,
+    className: 'bg-success/15 text-success',
+  },
   verificado: {
     label: 'Verificado',
     description:
@@ -16,7 +22,7 @@ const META: Record<DataSource, { label: string; description: string; icon: typeo
   estimado: {
     label: 'Estimado',
     description:
-      'Calculado con registros manuales de estudiantes y proyecciones basadas en horarios agregados. Puede variar respecto a la ocupación real.',
+      'Proyección basada en patrones de referencia y tus horarios guardados. No es una lectura de la ocupación actual ni modifica los registros del servidor.',
     icon: TrendingUp,
     className: 'bg-warning/20 text-warning-foreground dark:text-warning',
   },

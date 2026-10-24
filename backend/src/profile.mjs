@@ -11,6 +11,7 @@ import {
 } from "@aws-sdk/lib-dynamodb";
 import { db, tables } from "./lib/db.mjs";
 import { HttpError, caller, isConditionFailed, readBody, router } from "./lib/http.mjs";
+import { leaveParking } from "./lib/parking-store.mjs";
 
 const cognito = new CognitoIdentityProviderClient({});
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -80,7 +81,12 @@ async function saveProfile(event) {
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };
-  await db.send(new PutCommand({ TableName: tables.users, Item: profile }));
+  try {
+    await db.send(new PutCommand({ TableName: tables.users, Item: profile, ConditionExpression: "attribute_not_exists(deletingAt)" }));
+  } catch (error) {
+    if (isConditionFailed(error)) throw new HttpError(409, "La cuenta está en proceso de eliminación.");
+    throw error;
+  }
   return profile;
 }
 
@@ -119,6 +125,14 @@ async function deleteAccount(event) {
   const me = caller(event);
   const id = me.userId;
 
+  // Block new parking entries before releasing the active session. Entry checks
+  // this marker inside its transaction, so account deletion cannot orphan a car.
+  await db.send(new UpdateCommand({
+    TableName: tables.users, Key: { userId: id },
+    UpdateExpression: "SET deletingAt = if_not_exists(deletingAt, :now)",
+    ExpressionAttributeValues: { ":now": new Date().toISOString() },
+  }));
+
   // Seats the student was accepted into go back to their trips.
   for (const request of await query(tables.seatRequests, "byPassenger", "passengerId", id)) {
     if (request.status === "accepted") {
@@ -150,7 +164,7 @@ async function deleteAccount(event) {
   for (const slot of await query(tables.schedules, undefined, "userId", id)) {
     await remove(tables.schedules, { userId: id, slotId: slot.slotId });
   }
-  await remove(tables.parkingSessions, { userId: id });
+  await leaveParking(id, { allowMissing: true });
   await remove(tables.users, { userId: id });
 
   await cognito.send(

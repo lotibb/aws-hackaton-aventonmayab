@@ -50,11 +50,33 @@ Perfil público (`driver`, `passenger`): `{ id, name, colonia, photoUrl, phone? 
 
 | Ruta | Body | Respuesta |
 | --- | --- | --- |
-| `GET /parking/zones` | | Zonas + `sensorOnline` (hubo lectura en los últimos 10 min) |
+| `GET /parking/zones` | | Lista de zonas con `occupied`, `available`, `occupancyPercentage`, `source: "registrado"`, `capacityEstimated` y `updatedAt`. Conserva `sensorOnline` y los metadatos anteriores |
 | `GET /parking/session` | | `{ session }` activa o `null` |
-| `POST /parking/entry` | `{ zoneId }` | `{ session }`; 409 si ya hay una activa |
+| `POST /parking/entry` | `{ zoneId }` | `{ session }`; suma un ocupado y crea la sesión atómicamente. 409 si hay una activa, no hay capacidad o la zona aún no está configurada |
 | `POST /parking/exit` | | `{ session, exitedAt, minutes }`; 409 si no hay activa |
 | `GET /parking/forecast` | | Pendiente (Paso 7) |
+
+Las rutas existentes conservan respuesta HTTP 200 y errores `{ message }`. La sesión incluye
+`userId`, `zoneId`, `zoneName`, `enteredAt`, `sessionId` y `occupancyCounted: true`.
+La salida conserva `{ session, exitedAt, minutes }`, donde `session` es la sesión cerrada.
+El usuario siempre se obtiene del token; el body no puede registrar movimientos de otro alumno.
+
+La ocupación real de registros se guarda en `registeredOccupied` en la tabla existente
+`aventon-parking-zones`, separada de `currentCount`/lecturas físicas. No se suman ambos conteos.
+La salida y `DELETE /me` descuentan únicamente sesiones con `occupancyCounted: true`.
+Las sesiones antiguas se pueden cerrar, pero no descuentan un auto que nunca fue sumado por este flujo.
+La entrada verifica que exista el perfil y que no tenga `deletingAt`; `DELETE /me` marca
+el perfil antes de cerrar su sesión, evitando nuevas entradas durante la eliminación.
+Las zonas sin inicializar devuelven `occupied`, `available` y `occupancyPercentage` en `null`;
+no se interpretan como vacías. Ejecutar la sincronización documentada en `backend/README.md`.
+
+Las diez zonas y capacidades aproximadas se comparten mediante
+`backend/src/lib/parking-catalog.json`. La sincronización conserva contadores, sesiones,
+lecturas de sensores y zonas antiguas. El catálogo no convierte capacidades en cifras oficiales.
+El frontend consulta zonas y sesión cada cinco segundos y después de cada operación, incluso ante 409.
+Los datos no se sustituyen por demostraciones locales cuando falla la API.
+El conteo representa entradas registradas, no vehículos sin registrar. Los pronósticos existentes
+siguen siendo estimados y no modifican el conteo almacenado.
 
 ## Perfil y horario
 

@@ -3,6 +3,7 @@
 import { Loader2, LogIn, LogOut } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { useSWRConfig } from 'swr'
 import { DataBadge } from '@/components/shared/data-badge'
 import { Button } from '@/components/ui/button'
 import { useMyParkingEntry, useNow } from '@/hooks/use-data'
@@ -11,8 +12,9 @@ import { formatRelative } from '@/lib/format'
 import { errorMessage, parkingService } from '@/lib/services'
 import type { User, ZoneId } from '@/lib/types'
 
-export function ManualCheckIn({ user, zoneId }: { user: User; zoneId: ZoneId }) {
-  const { data: entry, isLoading } = useMyParkingEntry(user)
+export function ManualCheckIn({ user, zoneId, canEnter = true }: { user: User; zoneId: ZoneId; canEnter?: boolean }) {
+  const { data: entry, isLoading, error, mutate: refreshEntry } = useMyParkingEntry(user)
+  const { mutate } = useSWRConfig()
   const now = useNow()
   const [pending, setPending] = useState<'in' | 'out' | null>(null)
   const zone = getZone(zoneId)
@@ -30,6 +32,12 @@ export function ManualCheckIn({ user, zoneId }: { user: User; zoneId: ZoneId }) 
     } catch (err) {
       toast.error(errorMessage(err))
     } finally {
+      // Refresh even after a conflict or lost response: the server may have
+      // committed the transaction, and another browser can change the session.
+      await Promise.allSettled([
+        mutate(['parking', 'zones', user.id]),
+        mutate(['parking', 'my-entry', user.id]),
+      ])
       setPending(null)
     }
   }
@@ -40,27 +48,29 @@ export function ManualCheckIn({ user, zoneId }: { user: User; zoneId: ZoneId }) 
         <h2 id="manual" className="font-semibold">
           Registro manual
         </h2>
-        <DataBadge source="estimado" />
+        <DataBadge source="registrado" />
       </div>
       <p className="text-sm leading-relaxed text-muted-foreground">
-        Ayúdanos a validar los sensores. Tu registro solo suma al conteo; nadie más ve en qué zona estás.
+        Tu entrada y salida actualizan el conteo compartido en el servidor. Solo tú puedes consultar tu sesión; el resto ve totales por zona.
       </p>
       {entry && (
         <p className="rounded-xl bg-primary/8 p-3 text-sm">
-          Estás en <span className="font-semibold">{getZone(entry.zoneId).name}</span> · entrada {formatRelative(entry.timestamp, now)}
+          Estás en <span className="font-semibold">{entry.zoneName ?? entry.zoneId}</span> · entrada {formatRelative(entry.timestamp, now)}
         </p>
       )}
       <div className="grid grid-cols-2 gap-2">
-        <Button className="h-12 text-base" disabled={isLoading || !!entry || !!pending} onClick={() => act('in')}>
+        <Button className="h-12 text-base" disabled={isLoading || !!error || !canEnter || !!entry || !!pending} onClick={() => act('in')}>
           {pending === 'in' ? <Loader2 className="animate-spin" aria-hidden="true" /> : <LogIn aria-hidden="true" />}
           Registrar entrada
         </Button>
-        <Button variant="outline" className="h-12 text-base" disabled={!entry || !!pending} onClick={() => act('out')}>
+        <Button variant="outline" className="h-12 text-base" disabled={!!error || !entry || !!pending} onClick={() => act('out')}>
           {pending === 'out' ? <Loader2 className="animate-spin" aria-hidden="true" /> : <LogOut aria-hidden="true" />}
           Registrar salida
         </Button>
       </div>
-      {!entry && <p className="text-xs text-muted-foreground">La entrada se registrará en {zone.name}.</p>}
+      {error ? (
+        <p role="alert" className="text-sm text-destructive">{errorMessage(error)} <button type="button" className="underline" onClick={() => refreshEntry()}>Reintentar consulta de sesión</button></p>
+      ) : !entry && <p className="text-xs text-muted-foreground">La entrada se registrará en {zone.name}.</p>}
     </section>
   )
 }

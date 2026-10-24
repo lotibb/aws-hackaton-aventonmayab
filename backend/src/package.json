@@ -1,8 +1,16 @@
 {
   "name": "aventon-mayab-lambdas",
   "private": true,
-  "description": "Dependencies for the Lambdas; sam build installs them. The AWS SDK comes with the Node.js runtime.",
+  "description": "Dependencies for the Lambdas and local integration checks; sam build installs them.",
+  "scripts": {
+    "test:parking": "node --test ../tests/parking.test.mjs",
+    "test:parking:ddb": "node --test ../tests/parking-ddb.test.mjs",
+    "parking:sync": "node scripts/sync-parking-zones.mjs"
+  },
   "dependencies": {
-    "@anthropic-ai/bedrock-sdk": "0.34.4"
+    "@anthropic-ai/bedrock-sdk": "0.34.4",
+    "@aws-sdk/client-cognito-identity-provider": "^3.1156.0",
+    "@aws-sdk/client-dynamodb": "^3.1156.0",
+    "@aws-sdk/lib-dynamodb": "^3.1156.0"
   }
 }

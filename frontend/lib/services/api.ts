@@ -15,12 +15,13 @@ const ERROR_CODES: Record<number, ServiceErrorCode> = {
 
 export async function api<T = unknown>(
   path: string,
-  options: { method?: "GET" | "POST" | "PUT" | "DELETE"; body?: unknown } = {},
+  options: { method?: "GET" | "POST" | "PUT" | "DELETE"; body?: unknown; cache?: RequestCache } = {},
 ): Promise<T> {
   const token = await authService.getToken();
   const hasBody = options.body !== undefined;
   const res = await fetch(`${API_URL}${path}`, {
     method: options.method ?? "GET",
+    cache: options.cache,
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(hasBody ? { "Content-Type": "application/json" } : {}),

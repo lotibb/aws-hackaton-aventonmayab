@@ -53,5 +53,5 @@ Smart Parking requiere el **access token** de Cognito: el `authService.getToken(
 - [x] Paso 5: API Gateway: `https://zdm8p9cfd7.execute-api.us-east-1.amazonaws.com`
 - [ ] Paso 6: Sensores del estacionamiento con IoT Core
 - [ ] Paso 7: Pronósticos
-- [ ] Paso 8: Conectar el frontend: listo para login, perfil, viajes y solicitudes; faltan estacionamiento y horarios
+- [ ] Paso 8: Conectar el frontend: login, perfil, viajes y solicitudes conectados. Parking tiene integración con la API principal y conteo transaccional; requiere desplegar backend y sincronizar P1–P10 (ver backend/README.md). Horarios siguen locales.
 - [x] Frontend publicado en AWS (S3 + CloudFront): https://d1ivrhj0shesvg.cloudfront.net

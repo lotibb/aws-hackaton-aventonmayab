@@ -226,7 +226,7 @@ export const userService = {
     } catch {
       throw new ServiceError('CONFLICT', 'No pudimos eliminar tu cuenta. Vuelve a iniciar sesión e inténtalo de nuevo.')
     }
-    // Schedules and parking check-ins still live in this browser until their APIs are connected.
+    // Clean legacy local data too; real parking sessions are closed by DELETE /me.
     writeDb((db) => {
       db.schedules = db.schedules.filter((s) => s.userId !== user.id)
       db.parkingEvents = db.parkingEvents.filter((e) => e.userId !== user.id)

@@ -6,9 +6,10 @@ import { DataBadge } from '@/components/shared/data-badge'
 import { TrafficLight } from '@/components/shared/traffic-light'
 import { useZonesOccupancy } from '@/hooks/use-data'
 import type { User } from '@/lib/types'
+import { errorMessage } from '@/lib/services/errors'
 
 export function ParkingOverview({ user }: { user: User }) {
-  const { data: zones } = useZonesOccupancy(user)
+  const { data: zones, error } = useZonesOccupancy(user)
 
   return (
     <section aria-labelledby="parking-overview" className="flex flex-col gap-3">
@@ -21,6 +22,7 @@ export function ParkingOverview({ user }: { user: User }) {
           <ChevronRight className="size-4" aria-hidden="true" />
         </Link>
       </div>
+      {error && <p role="alert" className="text-sm text-destructive">No pudimos actualizar Parking. {errorMessage(error)}</p>}
       <ul className="grid grid-cols-2 gap-3">
         {(zones ?? []).map((z) => (
           <li key={z.zone.id} className="flex flex-col gap-2 rounded-2xl border bg-card p-3">
@@ -39,7 +41,7 @@ export function ParkingOverview({ user }: { user: User }) {
             </div>
           </li>
         ))}
-        {!zones &&
+        {!zones && !error &&
           Array.from({ length: 4 }, (_, i) => <li key={i} className="h-28 animate-pulse rounded-2xl bg-muted" />)}
       </ul>
     </section>

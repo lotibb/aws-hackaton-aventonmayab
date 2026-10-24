@@ -41,6 +41,22 @@ Los errores ya vienen en español, por ejemplo "Solo se permiten correos @anahua
 
 ## API (`lib/services/api.ts`)
 
+### Estacionamiento
+
+Parking consulta y modifica datos reales de la API configurada en `NEXT_PUBLIC_API_URL`.
+No utiliza los conteos ni sesiones de demostración del navegador. Para que funcione,
+el backend principal debe estar actualizado y las diez zonas sincronizadas; consulta
+**Parking real** en `backend/README.md`. Esto también es necesario al correr `pnpm dev`:
+el servidor local del frontend no reemplaza las Lambdas desplegadas.
+
+La fuente **Registrado** representa entradas y salidas de alumnos guardadas en el servidor;
+no afirma que haya sensores físicos conectados. El simulador del perfil es independiente.
+Los pronósticos siguen siendo estimados y usan patrones de referencia y horarios propios.
+El catálogo compartido está en `backend/src/lib/parking-catalog.json`, por lo que hay que
+conservar el checkout completo del repositorio al compilar el frontend.
+
+Comprobación local del servicio y adaptadores: `node scripts/check-parking.cjs`.
+
 `api()` llama a la API con el token del alumno y lanza `Error` con el mensaje del backend, ya en español.
 
 ```ts

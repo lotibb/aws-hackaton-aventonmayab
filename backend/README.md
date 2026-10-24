@@ -80,6 +80,70 @@ URL: `https://zdm8p9cfd7.execute-api.us-east-1.amazonaws.com` (output `ApiUrl`).
 
 `src/lib/` tiene el código compartido: el router, el usuario del token y el cliente de DynamoDB. Las rutas y reglas están en [`docs/api.md`](../docs/api.md).
 
+### Parking real: activar la integración de P1–P10
+
+El frontend usa la API principal y Cognito, también cuando corre en localhost. La ocupación
+no se obtiene de `localStorage`. `POST /parking/entry` y `POST /parking/exit` actualizan
+sesión y `registeredOccupied` mediante transacciones de DynamoDB. Los sensores físicos
+(`currentCount` y `lastReadingAt`) son una fuente separada: no se suman ni se simulan
+para registrar una entrada real. `DELETE /me` cierra la sesión y descuenta su ocupación.
+
+Para activar en el entorno existente, con credenciales AWS de esa cuenta y Node.js 22+:
+
+1. Desde `backend/`, ejecutar `sam build` y `sam deploy`. Se deben desplegar juntas las
+   funciones Parking y Profile y sus permisos actualizados de `template.yaml`.
+2. Desde `backend/src/`, sincronizar el catálogo con las tablas del backend principal:
+
+   ```powershell
+   npm ci
+   $env:AWS_REGION = "us-east-1"
+   $env:PARKING_ZONES_TABLE = "aventon-parking-zones"
+   npm run parking:sync
+   ```
+
+3. Reiniciar el frontend local, o publicar el frontend con `frontend/deploy-aws.sh`.
+
+El script utiliza `src/lib/parking-catalog.json`, compartido con el frontend. Agrega las
+diez zonas con cero registros iniciales, conserva las capacidades existentes y solo
+inicializa `registeredOccupied` si no existe. Puede ejecutarse varias veces sin resetear
+contadores ni borrar zonas, sesiones o lecturas anteriores. Las capacidades iniciales
+son aproximadas, no oficiales. Las sesiones antiguas se conservan y pueden cerrarse;
+no descuentan el nuevo contador porque nunca fueron sumadas a él.
+
+La aplicación muestra la fuente **Registrado**, consulta cada cinco segundos y refresca
+después de registrar entrada/salida o de recibir un conflicto. Si no está desplegado el
+backend nuevo o falta alguna zona, muestra un error de configuración y no datos ficticios.
+El conteo incluye solo vehículos registrados por alumnos. Los pronósticos conservan la
+fórmula anterior, usan los horarios propios guardados y están identificados como estimados.
+El simulador de sensores sigue disponible, aislado de la API y sin alterar registros reales.
+
+Verificar contra AWS con `python tests/integration_test.py`; este script invoca las
+Lambdas y usa datos temporales. Para comprobar además el authorizer y CORS, iniciar
+sesión en el frontend, registrar entrada, confirmar desde otro navegador/usuario que
+el conteo cambió y registrar salida. La salida siempre usa la zona de la sesión,
+independientemente del marcador seleccionado.
+
+#### Pruebas locales de Parking
+
+Desde `backend/src/`: `npm run test:parking` comprueba contratos y transacciones emitidas
+con el SDK sustituido durante las pruebas. Para verificar condiciones y concurrencia
+contra el motor de DynamoDB Local, iniciar un contenedor temporal:
+
+```powershell
+docker run --detach --rm --name aventon-parking-ddb-check -p 127.0.0.1:18000:8000 amazon/dynamodb-local:latest -jar DynamoDBLocal.jar -inMemory -sharedDb
+$env:DYNAMODB_ENDPOINT = "http://localhost:18000"
+npm run test:parking:ddb
+Remove-Item Env:DYNAMODB_ENDPOINT
+docker stop aventon-parking-ddb-check
+```
+
+La suite crea y borra sus propias tablas locales. Comprueba entradas y salidas simultáneas,
+último lugar, aislamiento de sesión, salida retrasada frente a una nueva entrada,
+liberación de sesión al eliminar la cuenta, compatibilidad antigua y sincronización
+idempotente del catálogo. Estas pruebas locales no acreditan permisos IAM, Cognito o
+el despliegue AWS. Desde `frontend/`, `node scripts/check-parking.cjs` verifica el servicio
+con respuestas HTTP controladas y sin consultar AWS.
+
 ### Importar horario (Claude en Amazon Bedrock)
 
 `aventon-schedule-import` manda la foto o el PDF a Claude en [Amazon Bedrock](https://platform.claude.com/docs/en/build-with-claude/claude-in-amazon-bedrock) y devuelve las clases que encontró; no guarda nada, el alumno las revisa antes de agregarlas.

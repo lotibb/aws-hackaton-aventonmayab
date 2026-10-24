@@ -10,7 +10,7 @@ export function TripCard({ trip }: { trip: TripView }) {
   const roleLabel = trip.myRole === 'conductor' ? 'Tú conduces' : trip.myRole === 'pasajero' ? 'Vas como pasajero' : null
   return (
     <Link
-      href={`/viajes/${trip.id}`}
+      href={`/viajes/detalle?id=${encodeURIComponent(trip.id)}`}
       className="group flex flex-col gap-3 rounded-2xl border bg-card p-4 text-card-foreground outline-none transition-colors hover:border-primary/40 focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       <div className="flex items-center gap-3">

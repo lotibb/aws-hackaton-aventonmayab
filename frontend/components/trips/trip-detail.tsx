@@ -1,6 +1,7 @@
 'use client'
 
 import { Clock, Lock, MapPin, MapPinned, Navigation, Route, Users } from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
 import { PageHeader } from '@/components/app/page-header'
 import { ComingSoonBadge } from '@/components/shared/coming-soon'
 import { UserAvatar } from '@/components/shared/user-avatar'
@@ -8,6 +9,10 @@ import { useCurrentUser, useTrip } from '@/hooks/use-data'
 import { firstName, formatTripDate } from '@/lib/format'
 import { TripActions } from './trip-actions'
 import { TripProgress, TripStatusBadge, TripTimeline } from './trip-status'
+
+export function TripDetailFromQuery() {
+  return <TripDetail tripId={useSearchParams().get('id') ?? ''} />
+}
 
 export function TripDetail({ tripId }: { tripId: string }) {
   const user = useCurrentUser()

@@ -7,4 +7,9 @@ region = "us-east-1"
 resolve_s3 = true
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = false
-parameter_overrides = "UserPoolId=us-east-1_IypBl72F8 UserPoolClientId=7sdj2buovqpktsrohj0hg594im AllowedOrigins=*"
+# AllowedOrigins: the published app (CloudFront) and local development.
+parameter_overrides = [
+  "UserPoolId=us-east-1_IypBl72F8",
+  "UserPoolClientId=7sdj2buovqpktsrohj0hg594im",
+  "AllowedOrigins=https://d1ivrhj0shesvg.cloudfront.net,http://localhost:3000",
+]

@@ -1,6 +1,6 @@
 # Frontend
 
-App web (Next.js) que se despliega en Vercel. Todos los comandos se corren desde `frontend/`.
+App web (Next.js), publicada en AWS como sitio estático: **https://d1ivrhj0shesvg.cloudfront.net**. Todos los comandos se corren desde `frontend/`.
 
 ## Desarrollo local
 
@@ -8,16 +8,20 @@ App web (Next.js) que se despliega en Vercel. Todos los comandos se corren desde
 cp .env.example .env.local
 pnpm install
 pnpm dev        # http://localhost:3000
-pnpm build      # lo mismo que corre Vercel
+pnpm build      # genera el sitio estático en out/
 ```
 
-## Vercel
+## Publicar en AWS
 
-1. Settings → Git: conecta el repo `lotibb/aws-hackaton-aventonmayab`.
-2. Settings → Build and Deployment → **Root Directory**: `frontend`. Sin esto, Vercel busca la app en la raíz del repo y el deploy falla.
-3. Settings → Environment Variables: agrega las de `.env.example` en Production, Preview y Development, y vuelve a desplegar.
+La app se compila a archivos estáticos (`output: 'export'`) que se sirven desde un bucket privado de S3 detrás de CloudFront (`backend/infra/frontend.yaml`, stack `aventon-mayab-frontend`). No hay servidor de Next.js: el login va directo a Cognito y los datos a la API.
 
-Las variables son públicas. Nunca pongas llaves de AWS en el frontend.
+```sh
+./deploy-aws.sh     # compila, sube a S3 e invalida la caché de CloudFront
+```
+
+Requiere la AWS CLI con credenciales y pnpm. En Windows, córrelo desde Git Bash. Mientras la app use Next.js 16.4.0, el build puede detenerse con un aviso de seguridad (`SecurityFatalError`); vuelve a correr el script y continúa. Se quita actualizando a Next.js 16.4.1. Las variables de `.env.example` se incluyen en el build; son públicas, así que nunca pongas llaves de AWS en el frontend.
+
+Como no hay servidor, no se pueden usar rutas dinámicas (`[id]`), middleware ni rutas API. Por eso el detalle de viaje es `/viajes/detalle?id=...`.
 
 ## Login (`lib/services/authService.ts`)
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { DataBadge } from '@/components/shared/data-badge'
 import { LIGHT_HINT, LIGHT_SOFT, LIGHT_TEXT, TrafficLight } from '@/components/shared/traffic-light'
 import { Input } from '@/components/ui/input'
@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils'
 
 export function ArrivalHelper({ user, defaultZoneId }: { user: User; defaultZoneId: ZoneId }) {
   const [zoneId, setZoneId] = useState<ZoneId>(defaultZoneId)
+  useEffect(() => { setZoneId(defaultZoneId) }, [defaultZoneId])
   const [time, setTime] = useState('08:00')
   const weekday = new Date().getDay()
   const validTime = /^\d{2}:\d{2}$/.test(time)
@@ -34,7 +35,7 @@ export function ArrivalHelper({ user, defaultZoneId }: { user: User; defaultZone
         </div>
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-2 text-sm font-medium">Zona</legend>
-          <div className="grid grid-cols-4 gap-1" role="radiogroup">
+          <div className="grid grid-cols-3 gap-1 sm:grid-cols-5" role="radiogroup">
             {PARKING_ZONES.map((z) => (
               <button
                 key={z.id}

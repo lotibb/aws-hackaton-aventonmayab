@@ -22,7 +22,7 @@ function computeOccupancy(db: DbState, zoneId: ZoneId): ZoneOccupancy {
     occupied,
     percentage,
     light: trafficLightFor(percentage),
-    source: sensorStatus.online ? 'verificado' : 'estimado',
+    source: sensorStatus.online ? 'simulado' : 'estimado',
     sensorStatus,
     sensorOccupied,
     manualEstimate,
@@ -33,6 +33,8 @@ function computeOccupancy(db: DbState, zoneId: ZoneId): ZoneOccupancy {
 function latestEventFor(db: DbState, userId: string): ParkingEvent | undefined {
   return db.parkingEvents
     .filter((e) => e.userId === userId)
+    // Events appended in the same millisecond must prefer the latest action.
+    .reverse()
     .sort((a, b) => b.timestamp.localeCompare(a.timestamp))[0]
 }
 

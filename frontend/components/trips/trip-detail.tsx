@@ -7,6 +7,7 @@ import { ComingSoonBadge } from '@/components/shared/coming-soon'
 import { UserAvatar } from '@/components/shared/user-avatar'
 import { useCurrentUser, useTrip } from '@/hooks/use-data'
 import { firstName, formatTripDate } from '@/lib/format'
+import { ContactPhone } from './contact-phone'
 import { TripActions } from './trip-actions'
 import { TripProgress, TripStatusBadge, TripTimeline } from './trip-status'
 
@@ -57,6 +58,7 @@ export function TripDetail({ tripId }: { tripId: string }) {
           <p className="text-sm text-muted-foreground">Estudiante verificado · {trip.driver.colonia}</p>
         </div>
       </section>
+      {trip.myRole === 'pasajero' && trip.driver.phone && <ContactPhone name={trip.driver.displayName} phone={trip.driver.phone} />}
 
       <dl className="grid grid-cols-2 gap-3">
         <Detail icon={Clock} label="Salida">
@@ -82,8 +84,7 @@ export function TripDetail({ tripId }: { tripId: string }) {
             <MapPinned className="size-4" aria-hidden="true" />
             Punto de encuentro
           </h2>
-          <p className="font-medium">{trip.meetingPoint.name}</p>
-          <p className="text-sm leading-relaxed text-muted-foreground">{trip.meetingPoint.description}</p>
+          <p className="font-medium">{trip.meetingPoint}</p>
           {trip.pickupTime && <p className="mt-1 text-sm">Pasa por ti a las {trip.pickupTime}</p>}
         </section>
       ) : (
@@ -91,7 +92,9 @@ export function TripDetail({ tripId }: { tripId: string }) {
         trip.status !== 'cancelado' && (
           <p className="flex items-start gap-2 rounded-xl bg-muted p-3 text-sm leading-relaxed text-muted-foreground">
             <Lock className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            El punto de encuentro exacto se muestra solo cuando el conductor acepta tu solicitud.
+            {trip.myRequest?.status === 'accepted'
+              ? 'El conductor todavía no comparte el punto de encuentro.'
+              : 'El punto de encuentro se mostrará cuando el conductor acepte tu solicitud y lo comparta. El celular se comparte solo con pasajeros aceptados.'}
           </p>
         )
       )}

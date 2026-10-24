@@ -11,11 +11,11 @@ import {
 import { db, tables } from "./lib/db.mjs";
 import { HttpError, caller, isConditionFailed, readBody, router } from "./lib/http.mjs";
 
-// Trip status flow: Disponible -> En curso -> Finalizado, or Cancelado.
+// Trip status flow: Disponible -> Finalizado, or Cancelado.
+// "En curso" remains readable for trips created by older app versions.
 const ACTIVE = ["Disponible", "En curso"];
 const ALLOWED_FROM = {
-  "En curso": ["Disponible"],
-  Finalizado: ["En curso"],
+  Finalizado: ["Disponible", "En curso"],
   Cancelado: ["Disponible", "En curso"],
 };
 
@@ -54,7 +54,7 @@ async function loadProfiles(userIds) {
       RequestItems: {
         [tables.users]: {
           Keys: ids.map((userId) => ({ userId })),
-          ProjectionExpression: "userId, #n, colonia, photoUrl",
+          ProjectionExpression: "userId, #n, colonia, photoUrl, phone",
           ExpressionAttributeNames: { "#n": "name" },
         },
       },
@@ -63,9 +63,14 @@ async function loadProfiles(userIds) {
   return Object.fromEntries(Responses[tables.users].map((p) => [p.userId, p]));
 }
 
+// The phone number is shared only between a driver and a passenger the driver accepted,
+// and only while the trip is active.
+const shareContact = (trip, request) =>
+  request?.status === "accepted" && ACTIVE.includes(trip.status);
+
 // What other students may see. Before a match (request sent or accepted) only the first name.
 // null means the account was deleted.
-function publicProfile(profiles, userId, fullName) {
+function publicProfile(profiles, userId, fullName, withPhone = false) {
   const profile = profiles[userId];
   if (!profile) return null;
   const name = profile.name || "Estudiante";
@@ -74,6 +79,7 @@ function publicProfile(profiles, userId, fullName) {
     name: fullName ? name : name.split(" ")[0],
     colonia: profile.colonia,
     photoUrl: profile.photoUrl,
+    phone: withPhone ? profile.phone : undefined,
   };
 }
 
@@ -82,14 +88,17 @@ function presentTrip(trip, userId, request, profiles) {
     trip.driverId === userId || ["pending", "accepted"].includes(request?.status);
   return {
     ...visibleTrip(trip, userId, request),
-    driver: publicProfile(profiles, trip.driverId, matched),
+    driver: publicProfile(profiles, trip.driverId, matched, shareContact(trip, request)),
     myRequest: request ?? null,
   };
 }
 
 // The driver sees who asked for a seat, with their full name.
-function presentRequests(requests, profiles) {
-  return requests.map((r) => ({ ...r, passenger: publicProfile(profiles, r.passengerId, true) }));
+function presentRequests(trip, requests, profiles) {
+  return requests.map((r) => ({
+    ...r,
+    passenger: publicProfile(profiles, r.passengerId, true, shareContact(trip, r)),
+  }));
 }
 
 async function loadTrip(tripId) {
@@ -187,17 +196,14 @@ async function listTrips(event) {
   return open.map((t) => presentTrip(t, me.userId, requestsByTrip[t.tripId], profiles));
 }
 
-// POST /trips  { colonia, departureTime, seatsTotal, meetingPoint, routeDescription?, destination? }
+// POST /trips  { colonia, destination, departureTime, seatsTotal, meetingPoint?, routeDescription? }
 async function createTrip(event) {
   const me = caller(event);
   const body = readBody(event);
   const { colonia, departureTime, seatsTotal, meetingPoint } = body;
-  if (typeof colonia !== "string" || !colonia.trim()) {
-    throw new HttpError(400, "Falta la colonia");
-  }
-  if (typeof meetingPoint !== "string" || !meetingPoint.trim()) {
-    throw new HttpError(400, "Falta el punto de encuentro");
-  }
+  const origin = optionalText(colonia, "Origen", 80);
+  if (!origin) throw new HttpError(400, "Falta el lugar de salida");
+  const publicMeetingPoint = optionalText(meetingPoint, "Punto de encuentro", 120);
   const seats = Number(seatsTotal);
   if (!Number.isInteger(seats) || seats < 1 || seats > 8) {
     throw new HttpError(400, "Los asientos deben ser de 1 a 8");
@@ -205,19 +211,54 @@ async function createTrip(event) {
   const trip = {
     tripId: randomUUID(),
     driverId: me.userId,
-    colonia: colonia.trim(),
+    colonia: origin,
     destination: optionalText(body.destination, "Destino", 80),
     routeDescription: optionalText(body.routeDescription, "Ruta", 140),
     departureTime: toIso(departureTime),
     seatsTotal: seats,
     seatsLeft: seats,
-    meetingPoint: meetingPoint.trim(),
+    ...(publicMeetingPoint ? { meetingPoint: publicMeetingPoint } : {}),
     status: "Disponible",
     createdAt: new Date().toISOString(),
   };
   await db.send(new PutCommand({ TableName: tables.trips, Item: trip }));
   const profiles = await loadProfiles([me.userId]);
   return { ...presentTrip(trip, me.userId, undefined, profiles), requests: [] };
+}
+
+// PUT /trips/{tripId}/meeting-point  { meetingPoint }
+async function setMeetingPoint(event) {
+  const me = caller(event);
+  const trip = await loadOwnTrip(event.pathParameters.tripId, me);
+  if (!ACTIVE.includes(trip.status)) {
+    throw new HttpError(409, "El viaje ya no acepta cambios al punto de encuentro");
+  }
+  const meetingPoint = optionalText(readBody(event).meetingPoint, "Punto de encuentro", 120);
+  if (!meetingPoint || meetingPoint.length < 3) {
+    throw new HttpError(400, "Escribe un punto de encuentro público");
+  }
+  try {
+    await db.send(
+      new UpdateCommand({
+        TableName: tables.trips,
+        Key: { tripId: trip.tripId },
+        UpdateExpression: "SET meetingPoint = :point",
+        ConditionExpression: "#s = :available OR #s = :inProgress",
+        ExpressionAttributeNames: { "#s": "status" },
+        ExpressionAttributeValues: {
+          ":point": meetingPoint,
+          ":available": "Disponible",
+          ":inProgress": "En curso",
+        },
+      }),
+    );
+  } catch (err) {
+    if (isConditionFailed(err)) {
+      throw new HttpError(409, "El viaje ya no acepta cambios al punto de encuentro");
+    }
+    throw err;
+  }
+  return { tripId: trip.tripId, meetingPoint };
 }
 
 // GET /trips/{tripId}  The driver also gets the list of requests.
@@ -229,7 +270,7 @@ async function getTrip(event) {
     const profiles = await loadProfiles([trip.driverId, ...requests.map((r) => r.passengerId)]);
     return {
       ...presentTrip(trip, me.userId, undefined, profiles),
-      requests: presentRequests(requests, profiles),
+      requests: presentRequests(trip, requests, profiles),
     };
   }
   const myRequest = await loadRequest(trip.tripId, me.userId);
@@ -278,7 +319,7 @@ async function myTrips(event) {
   return {
     asDriver: driving.map((t, i) => ({
       ...presentTrip(t, me.userId, undefined, profiles),
-      requests: presentRequests(drivingRequests[i], profiles),
+      requests: presentRequests(t, drivingRequests[i], profiles),
     })),
     asPassenger: requests
       .filter((r) => tripsById[r.tripId])
@@ -329,7 +370,7 @@ async function requestSeat(event) {
   return request;
 }
 
-// DELETE /trips/{tripId}/requests  The passenger cancels their own request before the trip starts.
+// DELETE /trips/{tripId}/requests  The passenger cancels their own request before the driver completes the trip.
 async function cancelRequest(event) {
   const me = caller(event);
   const { tripId } = event.pathParameters;
@@ -430,7 +471,7 @@ async function rejectRequest(event) {
   return { tripId, passengerId, status: "rejected" };
 }
 
-// POST /trips/{tripId}/status  { status: "En curso" | "Finalizado" | "Cancelado" }
+// POST /trips/{tripId}/status  { status: "Finalizado" | "Cancelado" }
 async function setTripStatus(event) {
   const me = caller(event);
   const { status } = readBody(event);
@@ -456,8 +497,8 @@ async function setTripStatus(event) {
     }
     throw err;
   }
-  // Pending requests expire once the trip starts.
-  if (status === "En curso") {
+  // Completing a trip closes it to new requests and rejects all still-pending requests.
+  if (status === "Finalizado") {
     for (const request of await tripRequests(trip.tripId)) {
       if (request.status !== "pending") continue;
       await db
@@ -483,5 +524,6 @@ export const handler = router({
   "DELETE /trips/{tripId}/requests": cancelRequest,
   "POST /trips/{tripId}/requests/{passengerId}/accept": acceptRequest,
   "POST /trips/{tripId}/requests/{passengerId}/reject": rejectRequest,
+  "PUT /trips/{tripId}/meeting-point": setMeetingPoint,
   "POST /trips/{tripId}/status": setTripStatus,
 });

@@ -72,7 +72,7 @@ export function PrivacyNotice({ showBack = true }: { showBack?: boolean }) {
           2. Datos que recabamos
         </h2>
         <p className="text-muted-foreground">
-          Nombre completo, correo institucional, foto de perfil opcional, colonia aproximada, viajes que publicas o solicitas,
+          Nombre completo, correo institucional, número de celular, foto de perfil opcional, colonia aproximada, viajes que publicas o solicitas,
           registros manuales de estacionamiento y, si tú decides capturarlo, tu horario de clases.
         </p>
       </section>

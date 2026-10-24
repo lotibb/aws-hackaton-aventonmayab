@@ -74,6 +74,18 @@ export function initials(name: string): string {
     .join('')
 }
 
+/** 10-digit Mexican mobile number from what the student typed (+52, spaces and dashes allowed), or null. */
+export function normalizePhone(input: string): string | null {
+  const digits = input.replace(/\D/g, '')
+  const national = digits.length > 10 && /^521?/.test(digits) ? digits.replace(/^521?/, '') : digits
+  return national.length === 10 ? national : null
+}
+
+/** "9991234567" → "999 123 4567" */
+export function formatPhone(phone: string): string {
+  return `${phone.slice(0, 3)} ${phone.slice(3, 6)} ${phone.slice(6)}`
+}
+
 export function firstName(name: string): string {
   return name.split(' ')[0] ?? name
 }
@@ -82,7 +94,6 @@ export const TRIP_STATUS_LABEL: Record<TripStatus, string> = {
   publicado: 'Publicado',
   solicitud_pendiente: 'Solicitud pendiente',
   aceptado: 'Aceptado',
-  en_curso: 'En curso',
   finalizado: 'Finalizado',
   cancelado: 'Cancelado',
 }

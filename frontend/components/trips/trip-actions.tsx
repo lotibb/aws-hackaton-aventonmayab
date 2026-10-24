@@ -8,7 +8,10 @@ import { UserAvatar } from '@/components/shared/user-avatar'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { errorMessage, tripService } from '@/lib/services'
+import { ContactPhone } from './contact-phone'
 import type { TripView, User } from '@/lib/types'
 
 function useAction() {
@@ -87,32 +90,32 @@ function DriverActions({ user, trip }: { user: User; trip: TripView }) {
       )}
 
       {accepted.length > 0 && (
-        <section aria-labelledby="passengers" className="flex flex-col gap-3">
-          <h2 id="passengers" className="text-sm font-semibold text-muted-foreground">
-            Pasajeros confirmados
-          </h2>
-          <ul className="flex flex-wrap gap-3">
-            {accepted.map((r) => (
-              <li key={r.id} className="flex items-center gap-2 rounded-full border bg-card py-1 pr-3 pl-1">
-                <UserAvatar name={r.passenger.displayName} photoUrl={r.passenger.photoUrl} className="size-8" />
-                <span className="text-sm">{r.passenger.displayName}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <>
+          <section aria-labelledby="passengers" className="flex flex-col gap-3">
+            <h2 id="passengers" className="text-sm font-semibold text-muted-foreground">
+              Pasajeros confirmados
+            </h2>
+            <ul className="flex flex-col gap-2">
+              {accepted.map((r) => (
+                <li key={r.id} className="flex flex-col gap-3 rounded-xl border bg-card p-3">
+                  <div className="flex items-center gap-3">
+                    <UserAvatar name={r.passenger.displayName} photoUrl={r.passenger.photoUrl} className="size-8" />
+                    <span className="text-sm font-medium">{r.passenger.displayName}</span>
+                  </div>
+                  {r.passenger.phone && <ContactPhone name={r.passenger.displayName} phone={r.passenger.phone} />}
+                </li>
+              ))}
+            </ul>
+          </section>
+          {(trip.storedStatus === 'publicado' || trip.storedStatus === 'en_curso') && (
+            <MeetingPointEditor key={trip.meetingPoint ?? 'not-set'} user={user} trip={trip} />
+          )}
+        </>
       )}
 
       <div className="flex flex-col gap-2">
         {trip.storedStatus === 'publicado' && (
           <>
-            <Button
-              className="h-12 text-base"
-              disabled={!!pending}
-              onClick={() => run('start', () => tripService.startTrip(user, trip.id), 'Viaje en curso. Buen camino.')}
-            >
-              <Spinner show={pending === 'start'} />
-              Iniciar viaje
-            </Button>
             <Button
               variant="ghost"
               className="h-12 text-base text-destructive hover:bg-destructive/10 hover:text-destructive"
@@ -133,18 +136,58 @@ function DriverActions({ user, trip }: { user: User; trip: TripView }) {
             </Button>
           </>
         )}
-        {trip.storedStatus === 'en_curso' && (
+        {accepted.length > 0 && (trip.storedStatus === 'publicado' || trip.storedStatus === 'en_curso') && (
           <Button
             className="h-12 text-base"
             disabled={!!pending}
-            onClick={() => run('finish', () => tripService.finishTrip(user, trip.id), 'Viaje finalizado. Gracias por compartir.')}
+            onClick={() => run('complete', () => tripService.completeTrip(user, trip.id), 'Viaje completado.')}
           >
-            <Spinner show={pending === 'finish'} />
-            Finalizar viaje
+            <Spinner show={pending === 'complete'} />
+            Completar viaje
           </Button>
         )}
       </div>
     </div>
+  )
+}
+
+function MeetingPointEditor({ user, trip }: { user: User; trip: TripView }) {
+  const [meetingPoint, setMeetingPoint] = useState(trip.meetingPoint ?? '')
+  const { pending, run } = useAction()
+  const unchanged = meetingPoint.trim() === (trip.meetingPoint ?? '')
+
+  return (
+    <section aria-labelledby="meeting-point-editor-title" className="flex flex-col gap-2 rounded-2xl border bg-card p-4">
+      <Label id="meeting-point-editor-title" htmlFor="meeting-point-editor" className="text-sm font-semibold">
+        Punto de encuentro
+      </Label>
+      <Input
+        id="meeting-point-editor"
+        value={meetingPoint}
+        onChange={(event) => setMeetingPoint(event.target.value)}
+        placeholder="Ej. entrada principal de la Anáhuac"
+        maxLength={120}
+        className="h-12 text-base md:text-base"
+      />
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        Usa un lugar público. Este dato solo se comparte con tus pasajeros aceptados; no pongas tu domicilio.
+      </p>
+      <Button
+        variant="outline"
+        className="h-11"
+        disabled={!!pending || meetingPoint.trim().length < 3 || meetingPoint.trim().length > 120 || unchanged}
+        onClick={() =>
+          run(
+            'meeting-point',
+            () => tripService.setMeetingPoint(user, trip.id, meetingPoint),
+            trip.meetingPoint ? 'Punto de encuentro actualizado.' : 'Punto de encuentro guardado.',
+          )
+        }
+      >
+        <Spinner show={pending === 'meeting-point'} />
+        {trip.meetingPoint ? 'Actualizar punto de encuentro' : 'Guardar punto de encuentro'}
+      </Button>
+    </section>
   )
 }
 

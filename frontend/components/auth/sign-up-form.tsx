@@ -9,17 +9,19 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { ALLOWED_EMAIL_DOMAIN } from '@/lib/config'
+import { normalizePhone } from '@/lib/format'
 import { authService, errorMessage, isInstitutionalEmail, userService } from '@/lib/services'
 import type { Colonia } from '@/lib/types'
 import { FormField } from './form-field'
 import { setPendingCredentials } from './pending-credentials'
 
-type Errors = Partial<Record<'fullName' | 'email' | 'password' | 'colonia' | 'privacy' | 'form', string>>
+type Errors = Partial<Record<'fullName' | 'email' | 'phone' | 'password' | 'colonia' | 'privacy' | 'form', string>>
 
 export function SignUpForm() {
   const router = useRouter()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [colonia, setColonia] = useState<Colonia>()
   const [accepted, setAccepted] = useState(false)
@@ -30,6 +32,7 @@ export function SignUpForm() {
     const next: Errors = {}
     if (fullName.trim().length < 3) next.fullName = 'Escribe tu nombre completo.'
     if (!isInstitutionalEmail(email)) next.email = `Solo se permiten correos ${ALLOWED_EMAIL_DOMAIN}`
+    if (!normalizePhone(phone)) next.phone = 'Escribe tu celular a 10 dígitos.'
     if (password.length < 8) next.password = 'La contraseña debe tener al menos 8 caracteres.'
     if (!colonia) next.colonia = 'Elige tu colonia aproximada.'
     if (!accepted) next.privacy = 'Debes aceptar el Aviso de privacidad para continuar.'
@@ -45,7 +48,7 @@ export function SignUpForm() {
     try {
       const normalizedEmail = email.trim().toLowerCase()
       await authService.signUp(normalizedEmail, password)
-      userService.savePendingProfile(normalizedEmail, { fullName, colonia })
+      userService.savePendingProfile(normalizedEmail, { fullName, phone, colonia })
       setPendingCredentials(normalizedEmail, password)
       router.push(`/verificar?email=${encodeURIComponent(normalizedEmail)}`)
     } catch (err) {
@@ -59,7 +62,7 @@ export function SignUpForm() {
       <div>
         <h1 className="text-balance text-3xl font-semibold tracking-tight">Crea tu cuenta</h1>
         <p className="mt-2 text-pretty text-muted-foreground">
-          Solo pedimos tu colonia aproximada. Nunca tu domicilio ni tu teléfono.
+          Solo pedimos tu colonia aproximada, nunca tu domicilio.
         </p>
       </div>
 
@@ -83,6 +86,19 @@ export function SignUpForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           error={errors.email}
+          required
+        />
+        <FormField
+          id="phone"
+          label="Celular"
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel-national"
+          placeholder="999 123 4567"
+          hint="10 dígitos. Solo lo ve quien tenga un viaje aceptado contigo."
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          error={errors.phone}
           required
         />
         <FormField

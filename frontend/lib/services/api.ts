@@ -1,6 +1,6 @@
 // Calls the Aventón Mayab API with the student's Cognito token.
 // Example: const trips = await api<Trip[]>("/trips?colonia=Montebello");
-//          await api("/trips", { method: "POST", body: { colonia, departureTime, seatsTotal, meetingPoint } });
+//          await api("/trips", { method: "POST", body: { colonia, destination, departureTime, seatsTotal, meetingPoint? } });
 import { authService } from "./authService";
 import { ServiceError, type ServiceErrorCode } from "./errors";
 

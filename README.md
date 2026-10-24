@@ -47,6 +47,8 @@ flowchart LR
   trips & profile & parking --> ddb
 ```
 
+Versión en imagen: [`docs/arquitectura.png`](docs/arquitectura.png).
+
 Toda la infraestructura se crea con AWS CloudFormation (plantillas en `backend/infra/` y AWS SAM en `backend/template.yaml`), y cada Lambda tiene un rol de IAM con permisos solo sobre sus tablas. El frontend nunca habla directo con la base de datos y no necesita llaves de AWS.
 
 ## Servicios de AWS usados

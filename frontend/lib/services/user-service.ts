@@ -1,14 +1,56 @@
 import { BUILDINGS } from '../config'
 import { timeToMinutes } from '../format'
-import { createId, readDb, writeDb } from '../mock/db'
-import { deleteUser, fetchAuthSession } from 'aws-amplify/auth'
+import { createId, notifyChange, readDb, writeDb } from '../mock/db'
+import { fetchAuthSession } from 'aws-amplify/auth'
 import { COLONIAS, type Colonia, type Schedule, type User, type UserMode } from '../types'
+import { api } from './api'
 import { authService } from './authService'
 import { ServiceError } from './errors'
 
-// Name, colonia and photo are not stored in Cognito. Until the profile API exists, the sign-up
-// form stashes them here and they are attached to the Cognito `sub` on first sign-in.
+// Name, colonia and photo are not stored in Cognito. The sign-up form stashes them here and
+// they are saved to the profile API (keyed by the Cognito `sub`) on first sign-in.
 const PENDING_PROFILES_KEY = 'aventon-mayab:pending-profiles'
+
+// Profile as stored by the API (PUT /me replaces it whole).
+interface ApiProfile {
+  userId: string
+  email: string
+  name?: string
+  colonia?: Colonia
+  photoUrl?: string
+  activeMode?: UserMode
+  privacyAcceptedAt?: string
+  createdAt?: string
+}
+
+function toUser(profile: ApiProfile): User {
+  const now = new Date().toISOString()
+  return {
+    id: profile.userId,
+    email: profile.email,
+    fullName: profile.name ?? nameFromEmail(profile.email),
+    colonia: profile.colonia ?? COLONIAS[0],
+    photoUrl: profile.photoUrl,
+    activeMode: profile.activeMode ?? 'pasajero',
+    verified: true,
+    privacyAcceptedAt: profile.privacyAcceptedAt ?? profile.createdAt ?? now,
+    createdAt: profile.createdAt ?? now,
+  }
+}
+
+async function saveUser(user: User): Promise<User> {
+  const saved = await api<ApiProfile>('/me', {
+    method: 'PUT',
+    body: {
+      name: user.fullName,
+      colonia: user.colonia,
+      photoUrl: user.photoUrl,
+      activeMode: user.activeMode,
+      privacyAcceptedAt: user.privacyAcceptedAt,
+    },
+  })
+  return toUser(saved)
+}
 
 interface PendingProfile {
   fullName: string
@@ -69,40 +111,37 @@ export const userService = {
     writePendingProfiles(profiles)
   },
 
-  /** Returns the mock profile for the signed-in Cognito user, creating it on first sign-in. */
+  /** Returns the signed-in student's profile from the API, creating it on first sign-in. */
   async getCurrentProfile(userId: string): Promise<User> {
-    const existing = readDb().users.find((u) => u.id === userId)
-    if (existing) return existing
+    const profile = await api<ApiProfile>('/me')
+    if (profile.name) return toUser(profile)
 
-    const email = await currentEmail()
+    // First sign-in: use the name and colonia from sign-up, or the profile this browser
+    // kept before the API existed, so nobody has to type them again.
+    const email = profile.email || (await currentEmail())
     const profiles = readPendingProfiles()
     const pending = profiles[email]
-    const now = new Date().toISOString()
-    const user: User = {
-      id: userId,
+    const local = readDb().users.find((u) => u.id === userId)
+    const user = toUser({
+      ...profile,
       email,
-      fullName: pending?.fullName ?? nameFromEmail(email),
-      colonia: pending?.colonia ?? COLONIAS[0],
-      activeMode: 'pasajero',
-      verified: true,
-      privacyAcceptedAt: pending?.privacyAcceptedAt ?? now,
-      createdAt: now,
-    }
-    writeDb((db) => {
-      if (!db.users.some((u) => u.id === userId)) db.users.push(user)
+      name: pending?.fullName ?? local?.fullName,
+      colonia: pending?.colonia ?? local?.colonia,
+      photoUrl: local?.photoUrl,
+      activeMode: local?.activeMode,
+      privacyAcceptedAt: pending?.privacyAcceptedAt ?? local?.privacyAcceptedAt,
     })
+    const saved = await saveUser(user)
     if (pending) {
       delete profiles[email]
       writePendingProfiles(profiles)
     }
-    return user
+    return saved
   },
 
   // Cognito authorizer: the userId always comes from the token's `sub`, never from the client.
   async getProfile(user: User): Promise<User> {
-    const found = readDb().users.find((u) => u.id === user.id)
-    if (!found) throw new ServiceError('NOT_FOUND', 'Cuenta no encontrada.')
-    return found
+    return toUser(await api<ApiProfile>('/me'))
   },
 
   async updateProfile(user: User, update: ProfileUpdate): Promise<User> {
@@ -110,49 +149,38 @@ export const userService = {
       throw new ServiceError('INVALID_INPUT', 'Escribe tu nombre completo.')
     }
     if (update.colonia && !COLONIAS.includes(update.colonia)) throw new ServiceError('INVALID_INPUT', 'Colonia no válida.')
-    const updated = writeDb((db) => {
-      const found = db.users.find((u) => u.id === user.id)
-      if (!found) throw new ServiceError('NOT_FOUND', 'Cuenta no encontrada.')
-      if (update.fullName !== undefined) found.fullName = update.fullName.trim()
-      if (update.colonia) found.colonia = update.colonia
-      // Photos will be uploaded to a private S3 bucket via presigned URL.
-      if (update.photoUrl !== undefined) found.photoUrl = update.photoUrl ?? undefined
-      return found
-    })
-    return updated
+    const current = await this.getProfile(user)
+    const next: User = { ...current }
+    if (update.fullName !== undefined) next.fullName = update.fullName.trim()
+    if (update.colonia) next.colonia = update.colonia
+    // Photos arrive already resized to a small data URL (see profile-card).
+    if (update.photoUrl !== undefined) next.photoUrl = update.photoUrl ?? undefined
+    const saved = await saveUser(next)
+    notifyChange()
+    return saved
   },
 
   async setMode(user: User, mode: UserMode): Promise<void> {
-    writeDb((db) => {
-      const found = db.users.find((u) => u.id === user.id)
-      if (found) found.activeMode = mode
-    })
+    const current = await this.getProfile(user)
+    await saveUser({ ...current, activeMode: mode })
+    notifyChange()
   },
 
-  /** Deletes the Cognito account and every mock record tied to it. */
+  /** The API deletes every record tied to the account, and the Cognito user itself. */
   async deleteAccount(user: User): Promise<void> {
     try {
-      await deleteUser()
+      await api('/me', { method: 'DELETE' })
     } catch {
       throw new ServiceError('CONFLICT', 'No pudimos eliminar tu cuenta. Vuelve a iniciar sesión e inténtalo de nuevo.')
     }
+    // Schedules and parking check-ins still live in this browser until their APIs are connected.
     writeDb((db) => {
-      const myTripIds = new Set(db.trips.filter((t) => t.driverId === user.id).map((t) => t.id))
-      for (const trip of db.trips) {
-        if (myTripIds.has(trip.id) && (trip.status === 'publicado' || trip.status === 'en_curso')) trip.status = 'cancelado'
-      }
-      for (const r of db.requests) {
-        if (r.passengerId === user.id && r.status === 'accepted') {
-          const trip = db.trips.find((t) => t.id === r.tripId)
-          if (trip) trip.seatsAvailable = Math.min(trip.seatsTotal, trip.seatsAvailable + 1)
-        }
-      }
-      db.requests = db.requests.filter((r) => r.passengerId !== user.id)
       db.schedules = db.schedules.filter((s) => s.userId !== user.id)
       db.parkingEvents = db.parkingEvents.filter((e) => e.userId !== user.id)
       db.users = db.users.filter((u) => u.id !== user.id)
     })
-    await authService.signOut()
+    // The Cognito user is already gone, so revoking its tokens may fail; the local session is cleared anyway.
+    await authService.signOut().catch(() => {})
   },
 
   // Schedules are private: the authorizer restricts every query to the owner's partition key.

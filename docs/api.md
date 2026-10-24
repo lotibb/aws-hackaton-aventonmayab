@@ -13,6 +13,7 @@ Todas las rutas requieren `Authorization: Bearer <token>`, con el token de `auth
 - **Privacidad:**
   - El ID del alumno siempre sale del token, nunca del body.
   - El punto de encuentro solo lo ven el conductor y los pasajeros aceptados mientras el viaje está `Disponible` o `En curso`.
+  - Antes del match (solicitud enviada o aceptada) solo se ve el nombre de pila del conductor.
   - Cada quien ve solo su propio horario.
 - **Borrar cuenta:** `DELETE /me` borra todo lo del alumno (perfil, horario, entrada de estacionamiento, solicitudes y viajes propios) y su cuenta de Cognito. Si tenía un asiento aceptado, se devuelve al viaje.
 
@@ -20,19 +21,21 @@ Todas las rutas requieren `Authorization: Bearer <token>`, con el token de `auth
 
 | Ruta | Body | Respuesta |
 | --- | --- | --- |
-| `GET /trips?colonia=&from=` | | Viajes `Disponible` con lugares, ordenados por hora, sin `meetingPoint`. `from` (ISO) es opcional; por defecto, ahora |
-| `POST /trips` | `{ colonia, departureTime, seatsTotal (1-8), meetingPoint }` | El viaje creado |
-| `GET /trips/{tripId}` | | Viaje + `myRequest`. El conductor recibe además `requests` |
-| `GET /me/trips` | | `{ asDriver: [...], asPassenger: [{ ...viaje, myRequest }] }` |
-| `POST /trips/{tripId}/requests` | | Solicitud `pending` |
-| `DELETE /trips/{tripId}/requests` | | El pasajero cancela la suya (devuelve el asiento si estaba aceptada) |
+| `GET /trips?colonia=&from=` | | Viajes `Disponible` de otros conductores, con lugares y ordenados por hora. Incluye `driver` y `myRequest`. `from` (ISO) es opcional; por defecto, ahora |
+| `POST /trips` | `{ colonia, departureTime, seatsTotal (1-8), meetingPoint, routeDescription?, destination? }` | El viaje creado |
+| `GET /trips/{tripId}` | | Viaje + `myRequest`. El conductor recibe además `requests`. 404 si nunca pediste lugar y el viaje ya no está `Disponible` |
+| `GET /me/trips` | | `{ asDriver: [{ ...viaje, requests }], asPassenger: [{ ...viaje, myRequest }] }` |
+| `POST /trips/{tripId}/requests` | `{ consent: true }` | Solicitud `pending`. Sin consentimiento, 400 |
+| `DELETE /trips/{tripId}/requests` | | El pasajero cancela la suya antes de que el viaje empiece (devuelve el asiento si estaba aceptada) |
 | `POST /trips/{tripId}/requests/{passengerId}/accept` | | Solo el conductor |
 | `POST /trips/{tripId}/requests/{passengerId}/reject` | | Solo el conductor |
-| `POST /trips/{tripId}/status` | `{ status: "En curso" \| "Finalizado" \| "Cancelado" }` | Solo el conductor |
+| `POST /trips/{tripId}/status` | `{ status: "En curso" \| "Finalizado" \| "Cancelado" }` | Solo el conductor. Al pasar a `En curso`, las solicitudes pendientes se rechazan |
 
-Viaje: `{ tripId, driverId, driverName, colonia, departureTime, seatsTotal, seatsLeft, meetingPoint?, status, createdAt }`
+Viaje: `{ tripId, driverId, driver, colonia, destination?, routeDescription?, departureTime, seatsTotal, seatsLeft, meetingPoint?, status, createdAt, myRequest, requests? }`
 
-Solicitud: `{ tripId, passengerId, passengerName, status, createdAt, updatedAt? }`
+Solicitud: `{ tripId, passengerId, status, consentGivenAt, createdAt, updatedAt, passenger? }`
+
+Perfil público (`driver`, `passenger`): `{ id, name, colonia, photoUrl }`, o `null` si la cuenta se borró. `meetingPoint` es el id de un punto público de `frontend/lib/config.ts`.
 
 `departureTime` va en ISO 8601 UTC, por ejemplo `"2026-10-26T13:30:00Z"` (usa `new Date(...).toISOString()`).
 
@@ -56,8 +59,8 @@ Solicitud: `{ tripId, passengerId, passengerName, status, createdAt, updatedAt? 
 
 | Ruta | Body | Respuesta |
 | --- | --- | --- |
-| `GET /me` | | `{ userId, email, name, colonia, photoUrl }` |
-| `PUT /me` | `{ name, colonia, photoUrl }` | Reemplaza el perfil completo. El email sale del token |
+| `GET /me` | | `{ userId, email, name, colonia, photoUrl, activeMode, privacyAcceptedAt, createdAt }` |
+| `PUT /me` | `{ name, colonia, photoUrl, activeMode, privacyAcceptedAt }` | Reemplaza el perfil completo. El email sale del token. `photoUrl` es una imagen pequeña (data URL de hasta 200 KB) |
 | `DELETE /me` | | Borra la cuenta y todos sus datos |
 | `GET /me/schedule` | | Clases del alumno |
 | `PUT /me/schedule/{slotId}` | `{ day: 1-7 (lunes-domingo), start: "HH:MM", end: "HH:MM", subject? }` | La clase guardada |

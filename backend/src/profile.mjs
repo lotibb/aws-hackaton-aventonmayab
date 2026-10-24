@@ -47,17 +47,28 @@ async function getProfile(event) {
   return Item ?? { userId: me.userId, email: me.email };
 }
 
-// PUT /me  { name, colonia, photoUrl }  Replaces the whole profile.
+// PUT /me  { name, colonia, photoUrl, activeMode, privacyAcceptedAt }  Replaces the whole profile.
 async function saveProfile(event) {
   const me = caller(event);
   const body = readBody(event);
+  if (body.activeMode !== undefined && !["conductor", "pasajero"].includes(body.activeMode)) {
+    throw new HttpError(400, "Modo inválido");
+  }
+  const { Item: existing } = await db.send(
+    new GetCommand({ TableName: tables.users, Key: { userId: me.userId } }),
+  );
+  const now = new Date().toISOString();
   const profile = {
     userId: me.userId,
     email: me.email,
     name: optionalText(body.name, "Nombre", 80),
     colonia: optionalText(body.colonia, "Colonia", 80),
-    photoUrl: optionalText(body.photoUrl, "Foto", 500),
-    updatedAt: new Date().toISOString(),
+    // A small, resized image (data URL); the frontend shrinks photos before sending them.
+    photoUrl: optionalText(body.photoUrl, "Foto", 200_000),
+    activeMode: body.activeMode,
+    privacyAcceptedAt: optionalText(body.privacyAcceptedAt, "Fecha de privacidad", 40),
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
   };
   await db.send(new PutCommand({ TableName: tables.users, Item: profile }));
   return profile;

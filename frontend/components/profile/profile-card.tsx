@@ -13,6 +13,7 @@ import { errorMessage, userService } from '@/lib/services'
 import type { Colonia, User } from '@/lib/types'
 
 const MAX_PHOTO_BYTES = 1_000_000
+const AVATAR_SIZE = 256
 
 export function ProfileCard({ user }: { user: User }) {
   const { mutate } = useSWRConfig()
@@ -42,7 +43,20 @@ export function ProfileCard({ user }: { user: User }) {
     if (!file.type.startsWith('image/')) return toast.error('Elige una imagen.')
     if (file.size > MAX_PHOTO_BYTES) return toast.error('La foto debe pesar menos de 1 MB.')
     const reader = new FileReader()
-    reader.onload = () => update({ photoUrl: String(reader.result) }, 'Foto actualizada.')
+    reader.onload = () => {
+      // Shrink to an avatar-sized JPEG so it fits in the profile record.
+      const img = new Image()
+      img.onload = () => {
+        const scale = Math.min(1, AVATAR_SIZE / Math.max(img.width, img.height))
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.round(img.width * scale)
+        canvas.height = Math.round(img.height * scale)
+        canvas.getContext('2d')?.drawImage(img, 0, 0, canvas.width, canvas.height)
+        update({ photoUrl: canvas.toDataURL('image/jpeg', 0.85) }, 'Foto actualizada.')
+      }
+      img.onerror = () => toast.error('No pudimos leer esa imagen.')
+      img.src = String(reader.result)
+    }
     reader.readAsDataURL(file)
   }
 

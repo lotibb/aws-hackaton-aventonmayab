@@ -8,7 +8,7 @@ import {
   TransactWriteCommand,
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
-import { db, displayName, tables } from "./lib/db.mjs";
+import { db, tables } from "./lib/db.mjs";
 import { HttpError, caller, isConditionFailed, readBody, router } from "./lib/http.mjs";
 
 // Trip status flow: Disponible -> En curso -> Finalizado, or Cancelado.
@@ -27,6 +27,14 @@ function toIso(value) {
   return date.toISOString();
 }
 
+function optionalText(value, field, max) {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string" || value.trim().length > max) {
+    throw new HttpError(400, `${field} inválido`);
+  }
+  return value.trim();
+}
+
 // The meeting point is only for the driver, or an accepted passenger while the trip is active.
 function visibleTrip(trip, userId, request) {
   const canSee =
@@ -35,6 +43,53 @@ function visibleTrip(trip, userId, request) {
   if (canSee) return trip;
   const { meetingPoint, ...rest } = trip;
   return rest;
+}
+
+// Profiles are read at request time so name, colonia and photo are always current.
+async function loadProfiles(userIds) {
+  const ids = [...new Set(userIds)];
+  if (!ids.length) return {};
+  const { Responses } = await db.send(
+    new BatchGetCommand({
+      RequestItems: {
+        [tables.users]: {
+          Keys: ids.map((userId) => ({ userId })),
+          ProjectionExpression: "userId, #n, colonia, photoUrl",
+          ExpressionAttributeNames: { "#n": "name" },
+        },
+      },
+    }),
+  );
+  return Object.fromEntries(Responses[tables.users].map((p) => [p.userId, p]));
+}
+
+// What other students may see. Before a match (request sent or accepted) only the first name.
+// null means the account was deleted.
+function publicProfile(profiles, userId, fullName) {
+  const profile = profiles[userId];
+  if (!profile) return null;
+  const name = profile.name || "Estudiante";
+  return {
+    id: userId,
+    name: fullName ? name : name.split(" ")[0],
+    colonia: profile.colonia,
+    photoUrl: profile.photoUrl,
+  };
+}
+
+function presentTrip(trip, userId, request, profiles) {
+  const matched =
+    trip.driverId === userId || ["pending", "accepted"].includes(request?.status);
+  return {
+    ...visibleTrip(trip, userId, request),
+    driver: publicProfile(profiles, trip.driverId, matched),
+    myRequest: request ?? null,
+  };
+}
+
+// The driver sees who asked for a seat, with their full name.
+function presentRequests(requests, profiles) {
+  return requests.map((r) => ({ ...r, passenger: publicProfile(profiles, r.passengerId, true) }));
 }
 
 async function loadTrip(tripId) {
@@ -60,6 +115,29 @@ async function loadRequest(tripId, passengerId) {
   return Item;
 }
 
+async function tripRequests(tripId) {
+  const { Items } = await db.send(
+    new QueryCommand({
+      TableName: tables.seatRequests,
+      KeyConditionExpression: "tripId = :t",
+      ExpressionAttributeValues: { ":t": tripId },
+    }),
+  );
+  return Items;
+}
+
+async function passengerRequests(passengerId) {
+  const { Items } = await db.send(
+    new QueryCommand({
+      TableName: tables.seatRequests,
+      IndexName: "byPassenger",
+      KeyConditionExpression: "passengerId = :me",
+      ExpressionAttributeValues: { ":me": passengerId },
+    }),
+  );
+  return Items;
+}
+
 // Changes a seat request's status only if it is still `from`.
 function requestStatusUpdate(tripId, passengerId, from, to) {
   return {
@@ -76,36 +154,44 @@ function requestStatusUpdate(tripId, passengerId, from, to) {
   };
 }
 
-// GET /trips?colonia=&from=  Open trips with free seats, by departure time.
+// GET /trips?colonia=&from=  Other drivers' open trips with free seats, by departure time.
 async function listTrips(event) {
+  const me = caller(event);
   const { colonia, from } = event.queryStringParameters ?? {};
   const since = from ? toIso(from) : new Date().toISOString();
   const values = { ":since": since };
-  const { Items } = colonia
-    ? await db.send(
-        new QueryCommand({
-          TableName: tables.trips,
-          IndexName: "byColonia",
-          KeyConditionExpression: "colonia = :c AND departureTime >= :since",
-          ExpressionAttributeValues: { ...values, ":c": colonia },
-        }),
-      )
-    : await db.send(
-        new ScanCommand({
-          TableName: tables.trips,
-          FilterExpression: "departureTime >= :since",
-          ExpressionAttributeValues: values,
-        }),
-      );
-  return Items.filter((t) => t.status === "Disponible" && t.seatsLeft > 0)
-    .sort((a, b) => a.departureTime.localeCompare(b.departureTime))
-    .map(({ meetingPoint, ...trip }) => trip);
+  const [{ Items }, myRequests] = await Promise.all([
+    colonia
+      ? db.send(
+          new QueryCommand({
+            TableName: tables.trips,
+            IndexName: "byColonia",
+            KeyConditionExpression: "colonia = :c AND departureTime >= :since",
+            ExpressionAttributeValues: { ...values, ":c": colonia },
+          }),
+        )
+      : db.send(
+          new ScanCommand({
+            TableName: tables.trips,
+            FilterExpression: "departureTime >= :since",
+            ExpressionAttributeValues: values,
+          }),
+        ),
+    passengerRequests(me.userId),
+  ]);
+  const requestsByTrip = Object.fromEntries(myRequests.map((r) => [r.tripId, r]));
+  const open = Items.filter(
+    (t) => t.status === "Disponible" && t.seatsLeft > 0 && t.driverId !== me.userId,
+  ).sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+  const profiles = await loadProfiles(open.map((t) => t.driverId));
+  return open.map((t) => presentTrip(t, me.userId, requestsByTrip[t.tripId], profiles));
 }
 
-// POST /trips  { colonia, departureTime, seatsTotal, meetingPoint }
+// POST /trips  { colonia, departureTime, seatsTotal, meetingPoint, routeDescription?, destination? }
 async function createTrip(event) {
   const me = caller(event);
-  const { colonia, departureTime, seatsTotal, meetingPoint } = readBody(event);
+  const body = readBody(event);
+  const { colonia, departureTime, seatsTotal, meetingPoint } = body;
   if (typeof colonia !== "string" || !colonia.trim()) {
     throw new HttpError(400, "Falta la colonia");
   }
@@ -119,8 +205,9 @@ async function createTrip(event) {
   const trip = {
     tripId: randomUUID(),
     driverId: me.userId,
-    driverName: await displayName(me),
     colonia: colonia.trim(),
+    destination: optionalText(body.destination, "Destino", 80),
+    routeDescription: optionalText(body.routeDescription, "Ruta", 140),
     departureTime: toIso(departureTime),
     seatsTotal: seats,
     seatsLeft: seats,
@@ -129,7 +216,8 @@ async function createTrip(event) {
     createdAt: new Date().toISOString(),
   };
   await db.send(new PutCommand({ TableName: tables.trips, Item: trip }));
-  return trip;
+  const profiles = await loadProfiles([me.userId]);
+  return { ...presentTrip(trip, me.userId, undefined, profiles), requests: [] };
 }
 
 // GET /trips/{tripId}  The driver also gets the list of requests.
@@ -137,23 +225,26 @@ async function getTrip(event) {
   const me = caller(event);
   const trip = await loadTrip(event.pathParameters.tripId);
   if (trip.driverId === me.userId) {
-    const { Items } = await db.send(
-      new QueryCommand({
-        TableName: tables.seatRequests,
-        KeyConditionExpression: "tripId = :t",
-        ExpressionAttributeValues: { ":t": trip.tripId },
-      }),
-    );
-    return { ...trip, requests: Items };
+    const requests = await tripRequests(trip.tripId);
+    const profiles = await loadProfiles([trip.driverId, ...requests.map((r) => r.passengerId)]);
+    return {
+      ...presentTrip(trip, me.userId, undefined, profiles),
+      requests: presentRequests(requests, profiles),
+    };
   }
   const myRequest = await loadRequest(trip.tripId, me.userId);
-  return { ...visibleTrip(trip, me.userId, myRequest), myRequest: myRequest ?? null };
+  // Students who never asked for a seat only see trips still open for requests.
+  if (!myRequest && trip.status !== "Disponible") {
+    throw new HttpError(404, "Viaje no encontrado");
+  }
+  const profiles = await loadProfiles([trip.driverId]);
+  return presentTrip(trip, me.userId, myRequest, profiles);
 }
 
-// GET /me/trips  Trips I drive and trips I asked to join.
+// GET /me/trips  Trips I drive (with their requests) and trips I asked to join.
 async function myTrips(event) {
   const me = caller(event);
-  const [{ Items: driving }, { Items: requests }] = await Promise.all([
+  const [{ Items: driving }, requests] = await Promise.all([
     db.send(
       new QueryCommand({
         TableName: tables.trips,
@@ -162,38 +253,46 @@ async function myTrips(event) {
         ExpressionAttributeValues: { ":me": me.userId },
       }),
     ),
-    db.send(
-      new QueryCommand({
-        TableName: tables.seatRequests,
-        IndexName: "byPassenger",
-        KeyConditionExpression: "passengerId = :me",
-        ExpressionAttributeValues: { ":me": me.userId },
-      }),
-    ),
+    passengerRequests(me.userId),
   ]);
-  let trips = [];
-  if (requests.length) {
-    const { Responses } = await db.send(
-      new BatchGetCommand({
-        RequestItems: {
-          [tables.trips]: { Keys: requests.map((r) => ({ tripId: r.tripId })) },
-        },
-      }),
-    );
-    trips = Responses[tables.trips];
-  }
+  const [drivingRequests, trips] = await Promise.all([
+    Promise.all(driving.map((t) => tripRequests(t.tripId))),
+    requests.length
+      ? db
+          .send(
+            new BatchGetCommand({
+              RequestItems: {
+                [tables.trips]: { Keys: requests.map((r) => ({ tripId: r.tripId })) },
+              },
+            }),
+          )
+          .then((r) => r.Responses[tables.trips])
+      : [],
+  ]);
   const tripsById = Object.fromEntries(trips.map((t) => [t.tripId, t]));
+  const profiles = await loadProfiles([
+    me.userId,
+    ...drivingRequests.flat().map((r) => r.passengerId),
+    ...trips.map((t) => t.driverId),
+  ]);
   return {
-    asDriver: driving,
+    asDriver: driving.map((t, i) => ({
+      ...presentTrip(t, me.userId, undefined, profiles),
+      requests: presentRequests(drivingRequests[i], profiles),
+    })),
     asPassenger: requests
       .filter((r) => tripsById[r.tripId])
-      .map((r) => ({ ...visibleTrip(tripsById[r.tripId], me.userId, r), myRequest: r })),
+      .map((r) => presentTrip(tripsById[r.tripId], me.userId, r, profiles)),
   };
 }
 
-// POST /trips/{tripId}/requests  Ask for a seat.
+// POST /trips/{tripId}/requests  { consent: true }  Ask for a seat.
+// The driver only sees the passenger's name, photo and colonia, and only after this consent.
 async function requestSeat(event) {
   const me = caller(event);
+  if (readBody(event).consent !== true) {
+    throw new HttpError(400, "Necesitamos tu consentimiento para enviar la solicitud");
+  }
   const trip = await loadTrip(event.pathParameters.tripId);
   if (trip.driverId === me.userId) {
     throw new HttpError(400, "No puedes pedir lugar en tu propio viaje");
@@ -201,12 +300,14 @@ async function requestSeat(event) {
   if (trip.status !== "Disponible" || trip.seatsLeft < 1) {
     throw new HttpError(409, "Este viaje ya no tiene lugares");
   }
+  const now = new Date().toISOString();
   const request = {
     tripId: trip.tripId,
     passengerId: me.userId,
-    passengerName: await displayName(me),
     status: "pending",
-    createdAt: new Date().toISOString(),
+    consentGivenAt: now,
+    createdAt: now,
+    updatedAt: now,
   };
   try {
     // Only one request per passenger per trip; asking again is allowed after cancelling.
@@ -228,17 +329,23 @@ async function requestSeat(event) {
   return request;
 }
 
-// DELETE /trips/{tripId}/requests  The passenger cancels their own request.
+// DELETE /trips/{tripId}/requests  The passenger cancels their own request before the trip starts.
 async function cancelRequest(event) {
   const me = caller(event);
   const { tripId } = event.pathParameters;
-  const request = await loadRequest(tripId, me.userId);
+  const [trip, request] = await Promise.all([loadTrip(tripId), loadRequest(tripId, me.userId)]);
+  if (request?.status !== "pending" && request?.status !== "accepted") {
+    throw new HttpError(404, "No tienes una solicitud activa en este viaje");
+  }
+  if (trip.status !== "Disponible") {
+    throw new HttpError(409, "El viaje ya comenzó o terminó");
+  }
   try {
-    if (request?.status === "pending") {
+    if (request.status === "pending") {
       await db.send(
         new UpdateCommand(requestStatusUpdate(tripId, me.userId, "pending", "cancelled")),
       );
-    } else if (request?.status === "accepted") {
+    } else {
       // Give the seat back in the same transaction.
       await db.send(
         new TransactWriteCommand({
@@ -256,8 +363,6 @@ async function cancelRequest(event) {
           ],
         }),
       );
-    } else {
-      throw new HttpError(404, "No tienes una solicitud activa en este viaje");
     }
   } catch (err) {
     if (isConditionFailed(err) || err.name === "TransactionCanceledException") {
@@ -350,6 +455,21 @@ async function setTripStatus(event) {
       throw new HttpError(409, "El viaje cambió, intenta de nuevo");
     }
     throw err;
+  }
+  // Pending requests expire once the trip starts.
+  if (status === "En curso") {
+    for (const request of await tripRequests(trip.tripId)) {
+      if (request.status !== "pending") continue;
+      await db
+        .send(
+          new UpdateCommand(
+            requestStatusUpdate(trip.tripId, request.passengerId, "pending", "rejected"),
+          ),
+        )
+        .catch((err) => {
+          if (!isConditionFailed(err)) throw err;
+        });
+    }
   }
   return { ...trip, status };
 }

@@ -76,13 +76,13 @@ URL: `https://zdm8p9cfd7.execute-api.us-east-1.amazonaws.com` (output `ApiUrl`).
 | `aventon-trips` | `trips.mjs` | viajes y solicitudes de asiento |
 | `aventon-parking` | `parking.mjs` | zonas, entrada y salida, sensores (simulador) y conteos para las proyecciones |
 | `aventon-profile` | `profile.mjs` | perfil, horario y borrar cuenta |
-| `aventon-schedule-import` | `schedule-import.mjs` | lee un horario en foto o PDF con Claude |
+| `aventon-schedule-import` | `schedule-import.mjs` | lee la capa de texto del PDF «Mi Plan A» o usa Claude para fotos y otros PDF |
 
 `src/lib/` tiene el código compartido: el router, el usuario del token y el cliente de DynamoDB. Las rutas y reglas están en [`docs/api.md`](../docs/api.md).
 
 ### Importar horario (Claude en Amazon Bedrock)
 
-`aventon-schedule-import` manda la foto o el PDF a Claude en [Amazon Bedrock](https://platform.claude.com/docs/en/build-with-claude/claude-in-amazon-bedrock) y devuelve las clases que encontró; no guarda nada, el alumno las revisa antes de agregarlas.
+`aventon-schedule-import` extrae directamente las clases del PDF oficial «Mi Plan A» cuando tiene texto legible. Para fotos u otros PDF usa Claude en [Amazon Bedrock](https://platform.claude.com/docs/en/build-with-claude/claude-in-amazon-bedrock). La importación no guarda nada hasta que el alumno revisa y confirma las clases.
 
 - **Modelo:** parámetro `ScheduleModelId`, por defecto `anthropic.claude-opus-5-5`. Antes del primer uso, habilita el modelo en Console → Amazon Bedrock → Model access (us-east-1).
 - **Permiso:** el rol de la Lambda solo tiene `bedrock-mantle:CreateInference`.

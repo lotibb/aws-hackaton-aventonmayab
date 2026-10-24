@@ -1,6 +1,6 @@
 'use client'
 
-import { FileUp, Loader2, Lock, Plus, Trash2 } from 'lucide-react'
+import { CalendarDays, FileUp, Loader2, Lock, Plus, Trash2 } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -11,15 +11,18 @@ import { useSchedules } from '@/hooks/use-data'
 import { BUILDINGS } from '@/lib/config'
 import { timeToMinutes, WEEKDAYS, WEEKDAYS_SHORT } from '@/lib/format'
 import { readScheduleFile } from '@/lib/schedule-file'
-import { errorMessage, userService, type ImportedClass } from '@/lib/services'
+import { schedulesOverlap } from '@/lib/schedule-grid'
+import { errorMessage, ServiceError, userService, type ImportedClass, type ScheduleInput } from '@/lib/services'
 import type { User } from '@/lib/types'
 import { ScheduleImportReview } from './schedule-import-review'
+import { ScheduleGridEditor } from './schedule-grid-editor'
 
 const SCHOOL_DAYS = [1, 2, 3, 4, 5, 6]
 
 export function ScheduleManager({ user }: { user: User }) {
-  const { data: schedules } = useSchedules(user)
+  const { data: schedules, error: scheduleError, mutate: refreshSchedules } = useSchedules(user)
   const [adding, setAdding] = useState(false)
+  const [editingGrid, setEditingGrid] = useState(false)
   const [weekday, setWeekday] = useState('1')
   const [start, setStart] = useState('08:00')
   const [end, setEnd] = useState('10:00')
@@ -42,6 +45,7 @@ export function ScheduleManager({ user }: { user: User }) {
       toast.success('Horario agregado.')
       setSubject('')
       setAdding(false)
+      void refreshSchedules()
     } catch (err) {
       toast.error(errorMessage(err))
     } finally {
@@ -67,9 +71,26 @@ export function ScheduleManager({ user }: { user: User }) {
   async function remove(id: string) {
     try {
       await userService.removeSchedule(user, id)
+      void refreshSchedules()
     } catch (err) {
       toast.error(errorMessage(err))
     }
+  }
+
+  async function saveGrid(additions: ScheduleInput[], removedIds: string[]) {
+    const current = await userService.listSchedules(user)
+    const retained = current.filter((schedule) => !removedIds.includes(schedule.id))
+    if (additions.some((addition) => retained.some((schedule) => schedulesOverlap(addition, schedule)))) {
+      await refreshSchedules()
+      throw new ServiceError('CONFLICT', 'Tu horario cambió. Revisa los bloques ocupados antes de guardar.')
+    }
+    await userService.addSchedules(user, additions)
+    for (const schedule of current.filter((entry) => removedIds.includes(entry.id))) {
+      await userService.removeSchedule(user, schedule.id)
+    }
+    await refreshSchedules()
+    setEditingGrid(false)
+    toast.success('Tu horario quedó guardado.')
   }
 
   return (
@@ -79,9 +100,14 @@ export function ScheduleManager({ user }: { user: User }) {
         Tus horarios son privados. Solo se usan de forma agregada para proyectar la ocupación y para darte recomendaciones a ti.
       </p>
 
-      {schedules === undefined ? (
+      {scheduleError ? (
+        <div className="flex items-center justify-between gap-3 p-4 text-sm">
+          <span>No pudimos cargar tus clases.</span>
+          <Button variant="outline" onClick={() => void refreshSchedules()}>Reintentar</Button>
+        </div>
+      ) : schedules === undefined ? (
         <div className="m-4 h-12 animate-pulse rounded-xl bg-muted" />
-      ) : sorted.length === 0 ? (
+      ) : editingGrid ? null : sorted.length === 0 ? (
         <p className="p-4 text-sm text-muted-foreground">Aún no agregas clases.</p>
       ) : (
         <ul className="divide-y">
@@ -91,7 +117,7 @@ export function ScheduleManager({ user }: { user: User }) {
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-sm font-medium">{s.subject ?? s.building}</span>
                 <span className="text-xs text-muted-foreground tabular-nums">
-                  {s.start}–{s.end} · {s.building}
+                  {s.start}–{s.end} · {s.building}{s.room && ` · Salón ${s.room}`}
                 </span>
               </span>
               <Button size="icon" variant="ghost" className="size-11" onClick={() => remove(s.id)}>
@@ -105,8 +131,10 @@ export function ScheduleManager({ user }: { user: User }) {
         </ul>
       )}
 
-      {imported ? (
-        <ScheduleImportReview user={user} classes={imported} existing={schedules ?? []} onDone={() => setImported(null)} />
+      {editingGrid ? (
+        <ScheduleGridEditor schedules={schedules ?? []} onCancel={() => setEditingGrid(false)} onSave={saveGrid} />
+      ) : imported ? (
+        <ScheduleImportReview user={user} classes={imported} existing={schedules ?? []} onDone={() => setImported(null)} onSaved={() => void refreshSchedules()} />
       ) : adding ? (
         <form onSubmit={add} className="flex flex-col gap-3 border-t p-4">
           <div className="grid grid-cols-3 gap-2">
@@ -164,18 +192,24 @@ export function ScheduleManager({ user }: { user: User }) {
           </div>
         </form>
       ) : (
-        <div className="grid grid-cols-2 divide-x border-t">
-          <Button variant="ghost" className="h-12 rounded-none text-primary" onClick={() => setAdding(true)} disabled={reading}>
-            <Plus aria-hidden="true" />
-            Agregar clase
+        <div className="flex flex-col border-t">
+          <Button variant="ghost" className="h-12 rounded-none border-b text-primary" onClick={() => setEditingGrid(true)} disabled={reading || schedules === undefined || Boolean(scheduleError)}>
+            <CalendarDays aria-hidden="true" />
+            Armar horario en cuadrícula
           </Button>
-          <Button variant="ghost" className="h-12 rounded-none text-primary" onClick={() => fileRef.current?.click()} disabled={reading}>
-            {reading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <FileUp aria-hidden="true" />}
-            {reading ? 'Leyendo horario…' : 'Subir foto o PDF'}
-          </Button>
+          <div className="grid grid-cols-2 divide-x">
+            <Button variant="ghost" className="h-12 rounded-none text-primary" onClick={() => setAdding(true)} disabled={reading}>
+              <Plus aria-hidden="true" />
+              Agregar clase
+            </Button>
+            <Button variant="ghost" className="h-12 rounded-none text-primary" onClick={() => fileRef.current?.click()} disabled={reading}>
+              {reading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <FileUp aria-hidden="true" />}
+              {reading ? 'Leyendo horario…' : 'Subir foto o PDF'}
+            </Button>
+          </div>
         </div>
       )}
-      <input ref={fileRef} type="file" accept="application/pdf,image/*" className="hidden" onChange={onFile} />
+      <input ref={fileRef} type="file" accept=".pdf,application/pdf,image/*" className="hidden" onChange={onFile} />
     </div>
   )
 }

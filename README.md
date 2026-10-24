@@ -16,6 +16,16 @@ Región: **us-east-1** para todo.
 - **Pre sign-up Lambda**: rechaza cualquier correo que no termine en `@anahuac.mx`.
 - **App Client** sin secreto (para el navegador).
 
+### Desplegado
+
+Stack `aventon-mayab-auth` en us-east-1 (cuenta 587601006525):
+
+| Output | Valor |
+| --- | --- |
+| UserPoolId | `us-east-1_IypBl72F8` |
+| UserPoolClientId | `7sdj2buovqpktsrohj0hg594im` |
+| UserPoolArn | `arn:aws:cognito-idp:us-east-1:587601006525:userpool/us-east-1_IypBl72F8` |
+
 ### Desplegar (consola, ~5 min)
 
 1. AWS Console → **CloudFormation** → región **us-east-1** → **Create stack** → *With new resources*.
@@ -45,8 +55,8 @@ aws cloudformation describe-stacks --region us-east-1 \
 3. Variables de entorno en Vercel (y en `.env.local`). Estos valores pueden ser públicos:
 
    ```
-   NEXT_PUBLIC_COGNITO_USER_POOL_ID=us-east-1_xxxxxxxxx
-   NEXT_PUBLIC_COGNITO_CLIENT_ID=xxxxxxxxxxxxxxxxxxxxxxxxxx
+   NEXT_PUBLIC_COGNITO_USER_POOL_ID=us-east-1_IypBl72F8
+   NEXT_PUBLIC_COGNITO_CLIENT_ID=7sdj2buovqpktsrohj0hg594im
    ```
 
    (Si el frontend usa Vite en lugar de Next.js, cambia el prefijo a `VITE_` y usa `import.meta.env`.)

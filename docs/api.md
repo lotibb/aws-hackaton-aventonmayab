@@ -1,8 +1,10 @@
 # API de Aventón Mayab
 
-Base URL: pendiente (se crea en el Paso 5 con API Gateway).
+Base URL: `https://zdm8p9cfd7.execute-api.us-east-1.amazonaws.com` (variable `NEXT_PUBLIC_API_URL`).
 
-Todas las rutas requieren `Authorization: Bearer <token>`, con el token de `authService.getToken()`. Los errores responden `{ "message": "..." }` en español, listo para mostrar al usuario.
+Desde el frontend usa `api()` de `frontend/lib/services/api.ts`: agrega el token, convierte el body a JSON y lanza `Error` con el mensaje del backend.
+
+Todas las rutas requieren `Authorization: Bearer <token>`, con el token de `authService.getToken()` (ID token). API Gateway rechaza con 401 cualquier llamada sin token válido. Los errores responden `{ "message": "..." }` en español, listo para mostrar al usuario.
 
 ## Reglas que aplica el backend
 

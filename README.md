@@ -17,21 +17,23 @@ El frontend nunca habla directo con la base de datos y no necesita llaves de AWS
 ## Estructura
 
 ```
-├── frontend/              App web (Next.js en Vercel)
-│   ├── lib/services/      authService.ts ya conectado a Cognito
+├── frontend/              App web (Next.js en Vercel, Root Directory = frontend)
+│   ├── app/               Páginas
+│   ├── components/        Componentes de UI
+│   ├── lib/services/      authService.ts (Cognito), api.ts (llamadas a la API) y servicios
 │   └── .env.example       Variables para Vercel
 ├── backend/               Todo lo de AWS
 │   ├── infra/             Cognito y tablas de DynamoDB
 │   ├── src/               Código de las Lambdas (Node.js 22)
 │   ├── tests/             Prueba de integración contra AWS
-│   ├── template.yaml      Lambdas (y API Gateway desde el Paso 5)
+│   ├── template.yaml      API Gateway + Lambdas
 │   ├── samconfig.toml     Configuración de `sam deploy`
 │   └── smartparking/      Módulo de Smart Parking (CDK, se despliega aparte)
 └── docs/
     └── api.md             Rutas de la API para el frontend
 ```
 
-- [`frontend/README.md`](frontend/README.md): cómo agregar la app y configurar Vercel.
+- [`frontend/README.md`](frontend/README.md): cómo correr la app y configurar Vercel.
 - [`backend/README.md`](backend/README.md): cómo desplegar y probar.
 - [`docs/api.md`](docs/api.md): la API.
 
@@ -46,7 +48,7 @@ Smart Parking requiere el **access token** de Cognito: el `authService.getToken(
 - [x] Paso 2: Login con Cognito (solo correos `@anahuac.mx`)
 - [x] Paso 3: Tablas de DynamoDB
 - [x] Paso 4: Lambdas con las reglas (sin sobreventa, sin doble entrada, privacidad, borrar cuenta)
-- [ ] Paso 5: API Gateway
+- [x] Paso 5: API Gateway: `https://zdm8p9cfd7.execute-api.us-east-1.amazonaws.com`
 - [ ] Paso 6: Sensores del estacionamiento con IoT Core
 - [ ] Paso 7: Pronósticos
 - [ ] Paso 8: Conectar el frontend

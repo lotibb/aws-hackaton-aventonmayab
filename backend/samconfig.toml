@@ -7,4 +7,4 @@ region = "us-east-1"
 resolve_s3 = true
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = false
-parameter_overrides = "UserPoolId=us-east-1_IypBl72F8"
+parameter_overrides = "UserPoolId=us-east-1_IypBl72F8 UserPoolClientId=7sdj2buovqpktsrohj0hg594im AllowedOrigins=*"

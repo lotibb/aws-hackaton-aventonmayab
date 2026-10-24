@@ -1,41 +1,77 @@
 import { PARKING_ZONES, REVIEW_DISCREPANCY, getZone, trafficLightFor } from '../config'
 import { WEEKDAYS, minutesToTime, timeToMinutes } from '../format'
-import { createId, readDb, writeDb } from '../mock/db'
-import type { DbState } from '../mock/seed'
-import { aggregateSchedules, buildForecast, projectPercentage } from '../projections'
-import type { ParkingEvent, TrafficLight, User, ZoneForecast, ZoneId, ZoneOccupancy } from '../types'
-import { ServiceError } from './errors'
+import { notifyChange } from '../mock/db'
+import { buildForecast, projectPercentage, type AggregatedPresence } from '../projections'
+import type { ParkingEvent, SensorEvent, TrafficLight, User, ZoneForecast, ZoneId, ZoneOccupancy } from '../types'
+import { api } from './api'
+import { userService } from './user-service'
 
-function computeOccupancy(db: DbState, zoneId: ZoneId): ZoneOccupancy {
-  const zone = getZone(zoneId)
-  const counters = db.sensorCounters[zoneId]
-  const sensorStatus = db.sensorStatus[zoneId]
-  // Occupancy = entries − exits, clamped to [0, capacity].
-  const sensorOccupied = Math.min(zone.capacity, Math.max(0, counters.entries - counters.exits))
-  const manualEstimate = Math.min(zone.capacity, Math.max(0, db.manualEstimates[zoneId]))
-  const occupied = sensorStatus.online ? sensorOccupied : manualEstimate
+// Shapes returned by the parking API (docs/api.md). Only aggregate counts, never who is parked.
+export interface ApiZone {
+  zoneId: string
+  name: string
+  area?: string
+  capacity: number
+  sensorCount: number
+  manualCount: number
+  sensorOnline: boolean
+  lastReadingAt: string | null
+  recentEvents: Array<Omit<SensorEvent, 'zoneId'>>
+}
+
+interface ApiSession {
+  userId: string
+  zoneId: ZoneId
+  enteredAt: string
+}
+
+const isCampusZone = (id: string): id is ZoneId => PARKING_ZONES.some((z) => z.id === id)
+
+export async function fetchZones(): Promise<Array<ApiZone & { zoneId: ZoneId }>> {
+  const zones = await api<ApiZone[]>('/parking/zones')
+  // The table may hold other zones (e.g. integration tests); the app shows the campus ones.
+  return zones.filter((z): z is ApiZone & { zoneId: ZoneId } => isCampusZone(z.zoneId))
+}
+
+function toOccupancy(api: ApiZone & { zoneId: ZoneId }): ZoneOccupancy {
+  const zone = { ...getZone(api.zoneId), capacity: api.capacity }
+  const clamp = (n: number) => Math.min(zone.capacity, Math.max(0, n))
+  const sensorOccupied = clamp(api.sensorCount)
+  const manualEstimate = clamp(api.manualCount)
+  const online = api.sensorOnline
+  const occupied = online ? sensorOccupied : manualEstimate
   const percentage = Math.round((occupied / zone.capacity) * 100)
-  const inReview = sensorStatus.online && Math.abs(sensorOccupied - manualEstimate) / zone.capacity > REVIEW_DISCREPANCY
-
   return {
     zone,
     occupied,
     percentage,
     light: trafficLightFor(percentage),
-    source: sensorStatus.online ? 'simulado' : 'estimado',
-    sensorStatus,
+    // The counters are the simulator's for now, so their data is labeled "Simulado".
+    source: online ? 'simulado' : 'estimado',
+    sensorStatus: { zoneId: api.zoneId, online, lastEventAt: api.lastReadingAt ?? new Date().toISOString() },
     sensorOccupied,
     manualEstimate,
-    inReview,
+    // If sensors and manual check-ins disagree by more than 10% of capacity, flag it.
+    inReview: online && Math.abs(sensorOccupied - manualEstimate) / zone.capacity > REVIEW_DISCREPANCY,
   }
 }
 
-function latestEventFor(db: DbState, userId: string): ParkingEvent | undefined {
-  return db.parkingEvents
-    .filter((e) => e.userId === userId)
-    // Events appended in the same millisecond must prefer the latest action.
-    .reverse()
-    .sort((a, b) => b.timestamp.localeCompare(a.timestamp))[0]
+// Students per time slot from everyone's class schedules, aggregated by the API.
+const PRESENCE_TTL_MS = 60_000
+let presenceCache: { at: number; data: Promise<AggregatedPresence> } | undefined
+
+function getPresence(): Promise<AggregatedPresence> {
+  if (!presenceCache || Date.now() - presenceCache.at > PRESENCE_TTL_MS) {
+    const data = api<AggregatedPresence>('/parking/presence')
+    presenceCache = { at: Date.now(), data }
+    data.catch(() => (presenceCache = undefined))
+  }
+  return presenceCache.data
+}
+
+/** Called when the student's own schedule changes, so the forecasts include it. */
+export function invalidatePresence() {
+  presenceCache = undefined
 }
 
 export interface ParkingRecommendation {
@@ -55,42 +91,34 @@ export interface PersonalInsight {
 export const parkingService = {
   /** Aggregate counts only — never who is parked or which vehicle. */
   async getZonesOccupancy(_user: User): Promise<ZoneOccupancy[]> {
-    const db = readDb()
-    return PARKING_ZONES.map((z) => computeOccupancy(db, z.id))
+    return (await fetchZones()).map(toOccupancy)
   },
 
-  /** A student's own active entry. The authorizer scopes this query to the caller's userId. */
+  /** A student's own active entry. The API only ever returns the caller's own. */
   async getMyActiveEntry(user: User): Promise<ParkingEvent | null> {
-    const latest = latestEventFor(readDb(), user.id)
-    return latest?.type === 'entrada' ? latest : null
+    const { session } = await api<{ session: ApiSession | null }>('/parking/session')
+    if (!session) return null
+    return { id: `pe-${session.enteredAt}`, userId: user.id, zoneId: session.zoneId, type: 'entrada', timestamp: session.enteredAt }
   },
 
-  async checkIn(user: User, zoneId: ZoneId): Promise<void> {
-    writeDb((db) => {
-      const latest = latestEventFor(db, user.id)
-      if (latest?.type === 'entrada') throw new ServiceError('CONFLICT', 'Ya tienes una entrada activa. Registra tu salida primero.')
-      db.parkingEvents.push({ id: createId('pe'), userId: user.id, zoneId, type: 'entrada', timestamp: new Date().toISOString() })
-      // The estimate is extrapolated from the sample of check-ins; each one nudges it.
-      db.manualEstimates[zoneId] = Math.min(getZone(zoneId).capacity, db.manualEstimates[zoneId] + 1)
-    })
+  /** Each check-in nudges the zone's manual estimate; the API keeps both in one transaction. */
+  async checkIn(_user: User, zoneId: ZoneId): Promise<void> {
+    await api('/parking/entry', { method: 'POST', body: { zoneId } })
+    notifyChange()
   },
 
-  async checkOut(user: User): Promise<void> {
-    writeDb((db) => {
-      const latest = latestEventFor(db, user.id)
-      if (latest?.type !== 'entrada') throw new ServiceError('CONFLICT', 'No tienes una entrada activa.')
-      db.parkingEvents.push({ id: createId('pe'), userId: user.id, zoneId: latest.zoneId, type: 'salida', timestamp: new Date().toISOString() })
-      db.manualEstimates[latest.zoneId] = Math.max(0, db.manualEstimates[latest.zoneId] - 1)
-    })
+  async checkOut(_user: User): Promise<void> {
+    await api('/parking/exit', { method: 'POST' })
+    notifyChange()
   },
 
   async getForecast(_user: User, zoneId: ZoneId, weekday: number): Promise<ZoneForecast> {
-    const agg = aggregateSchedules(readDb().schedules)
+    const agg = await getPresence()
     return { zoneId, weekday, points: buildForecast(agg, zoneId, weekday), source: 'estimado' }
   },
 
   async projectAt(_user: User, zoneId: ZoneId, weekday: number, time: string) {
-    const agg = aggregateSchedules(readDb().schedules)
+    const agg = await getPresence()
     const zone = getZone(zoneId)
     const percentage = projectPercentage(agg, zoneId, weekday, timeToMinutes(time))
     return {
@@ -101,7 +129,7 @@ export const parkingService = {
   },
 
   async getRecommendation(_user: User, zoneId: ZoneId, weekday: number): Promise<ParkingRecommendation> {
-    const agg = aggregateSchedules(readDb().schedules)
+    const agg = await getPresence()
     const zone = getZone(zoneId)
     let fullAt: number | undefined
     for (let m = 360; m <= 1260; m += 10) {
@@ -128,13 +156,11 @@ export const parkingService = {
 
   /** Uses the caller's own schedule only to personalize their view; never shared. */
   async getPersonalInsight(user: User, weekday: number): Promise<PersonalInsight | null> {
-    const db = readDb()
-    const mine = db.schedules
-      .filter((s) => s.userId === user.id && s.weekday === weekday)
-      .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start))
-    const first = mine[0]
+    const [schedules, agg] = await Promise.all([userService.listSchedules(user), getPresence()])
+    const first = schedules
+      .filter((s) => s.weekday === weekday)
+      .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start))[0]
     if (!first) return null
-    const agg = aggregateSchedules(db.schedules)
     const arrivalMinutes = timeToMinutes(first.start) - 20
     const zones = PARKING_ZONES.map((z) => {
       const percentage = projectPercentage(agg, z.id, weekday, arrivalMinutes)

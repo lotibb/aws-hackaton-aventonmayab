@@ -1,6 +1,7 @@
 import { BUILDINGS } from '../config'
 import { normalizePhone, timeToMinutes } from '../format'
 import { createId, notifyChange, readDb, writeDb } from '../mock/db'
+import { invalidatePresence } from './parking-service'
 import { fetchAuthSession } from 'aws-amplify/auth'
 import { COLONIAS, type Colonia, type Schedule, type User, type UserMode } from '../types'
 import { api } from './api'
@@ -124,28 +125,6 @@ export interface ScheduleInput {
   building: string
   subject?: string
   room?: string
-}
-
-export type ScheduleFileType = 'application/pdf' | 'image/jpeg' | 'image/png' | 'image/webp'
-
-/** A class read from an uploaded timetable, still to be reviewed by the student. */
-export interface ImportedClass {
-  weekday: number
-  start: string
-  end: string
-  subject?: string
-  room?: string
-  /** Only when the timetable makes it clear; otherwise the student picks it. */
-  building?: string
-}
-
-interface ApiImportedClass {
-  day: number
-  start: string
-  end: string
-  subject?: string
-  room?: string
-  building?: string
 }
 
 interface ApiSchedule {
@@ -340,24 +319,9 @@ export const userService = {
     writeDb((db) => {
       db.schedules.push(...schedules)
     })
+    // Forecasts count everyone's classes, the student's included.
+    invalidatePresence()
     return schedules
-  },
-
-  /** Reads a timetable (PDF or image, base64) on the API. Nothing is saved until the student confirms. */
-  async importSchedule(file: { data: string; mediaType: ScheduleFileType }): Promise<ImportedClass[]> {
-    const { classes } = await api<{ classes: ApiImportedClass[] }>('/me/schedule/import', {
-      method: 'POST',
-      body: { file: file.data, mediaType: file.mediaType, buildings: BUILDINGS },
-    })
-    return classes.map((c) => ({
-      // The API counts days 1 (lunes) to 7 (domingo); the app uses 0 (domingo) to 6.
-      weekday: c.day % 7,
-      start: c.start,
-      end: c.end,
-      subject: c.subject,
-      room: c.room,
-      building: c.building,
-    }))
   },
 
   async removeSchedule(user: User, scheduleId: string): Promise<void> {
@@ -367,5 +331,6 @@ export const userService = {
     writeDb((db) => {
       db.schedules = db.schedules.filter((s) => s.id !== scheduleId)
     })
+    invalidatePresence()
   },
 }

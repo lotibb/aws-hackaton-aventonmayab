@@ -1,72 +1,23 @@
 'use client'
 
-import { CalendarDays, FileUp, Loader2, Lock, Plus, Trash2 } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { CalendarDays, Lock, Trash2 } from 'lucide-react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useSchedules } from '@/hooks/use-data'
-import { BUILDINGS } from '@/lib/config'
 import { timeToMinutes, WEEKDAYS, WEEKDAYS_SHORT } from '@/lib/format'
-import { readScheduleFile } from '@/lib/schedule-file'
 import { schedulesOverlap } from '@/lib/schedule-grid'
-import { errorMessage, ServiceError, userService, type ImportedClass, type ScheduleInput } from '@/lib/services'
+import { errorMessage, ServiceError, userService, type ScheduleInput } from '@/lib/services'
 import type { User } from '@/lib/types'
-import { ScheduleImportReview } from './schedule-import-review'
 import { ScheduleGridEditor } from './schedule-grid-editor'
-
-const SCHOOL_DAYS = [1, 2, 3, 4, 5, 6]
 
 export function ScheduleManager({ user }: { user: User }) {
   const { data: schedules, error: scheduleError, mutate: refreshSchedules } = useSchedules(user)
-  const [adding, setAdding] = useState(false)
   const [editingGrid, setEditingGrid] = useState(false)
-  const [weekday, setWeekday] = useState('1')
-  const [start, setStart] = useState('08:00')
-  const [end, setEnd] = useState('10:00')
-  const [building, setBuilding] = useState(BUILDINGS[0])
-  const [subject, setSubject] = useState('')
-  const [pending, setPending] = useState(false)
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [reading, setReading] = useState(false)
-  const [imported, setImported] = useState<ImportedClass[] | null>(null)
 
   const sorted = [...(schedules ?? [])].sort(
     (a, b) => ((a.weekday + 6) % 7) - ((b.weekday + 6) % 7) || timeToMinutes(a.start) - timeToMinutes(b.start),
   )
-
-  async function add(e: React.FormEvent) {
-    e.preventDefault()
-    setPending(true)
-    try {
-      await userService.addSchedule(user, { weekday: Number(weekday), start, end, building, subject: subject.trim() || undefined })
-      toast.success('Horario agregado.')
-      setSubject('')
-      setAdding(false)
-      void refreshSchedules()
-    } catch (err) {
-      toast.error(errorMessage(err))
-    } finally {
-      setPending(false)
-    }
-  }
-
-  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file) return
-    setReading(true)
-    try {
-      setImported(await userService.importSchedule(await readScheduleFile(file)))
-      setAdding(false)
-    } catch (err) {
-      toast.error(errorMessage(err))
-    } finally {
-      setReading(false)
-    }
-  }
 
   async function remove(id: string) {
     try {
@@ -133,83 +84,17 @@ export function ScheduleManager({ user }: { user: User }) {
 
       {editingGrid ? (
         <ScheduleGridEditor schedules={schedules ?? []} onCancel={() => setEditingGrid(false)} onSave={saveGrid} />
-      ) : imported ? (
-        <ScheduleImportReview user={user} classes={imported} existing={schedules ?? []} onDone={() => setImported(null)} onSaved={() => void refreshSchedules()} />
-      ) : adding ? (
-        <form onSubmit={add} className="flex flex-col gap-3 border-t p-4">
-          <div className="grid grid-cols-3 gap-2">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="sch-day">Día</Label>
-              <Select value={weekday} onValueChange={(v) => v && setWeekday(v)}>
-                <SelectTrigger id="sch-day" className="h-12 w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SCHOOL_DAYS.map((d) => (
-                    <SelectItem key={d} value={String(d)}>
-                      {WEEKDAYS[d]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="sch-start">Inicio</Label>
-              <Input id="sch-start" type="time" value={start} onChange={(e) => setStart(e.target.value)} className="h-12" required />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="sch-end">Fin</Label>
-              <Input id="sch-end" type="time" value={end} onChange={(e) => setEnd(e.target.value)} className="h-12" required />
-            </div>
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="sch-building">Edificio</Label>
-            <Select value={building} onValueChange={(v) => v && setBuilding(v)}>
-              <SelectTrigger id="sch-building" className="h-12 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {BUILDINGS.map((b) => (
-                  <SelectItem key={b} value={b}>
-                    {b}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="sch-subject">Materia (opcional)</Label>
-            <Input id="sch-subject" value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={60} className="h-12 text-base md:text-base" />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <Button type="button" variant="outline" className="h-12" onClick={() => setAdding(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" className="h-12" disabled={pending}>
-              {pending && <Loader2 className="animate-spin" aria-hidden="true" />}
-              Guardar
-            </Button>
-          </div>
-        </form>
       ) : (
-        <div className="flex flex-col border-t">
-          <Button variant="ghost" className="h-12 rounded-none border-b text-primary" onClick={() => setEditingGrid(true)} disabled={reading || schedules === undefined || Boolean(scheduleError)}>
-            <CalendarDays aria-hidden="true" />
-            Armar horario en cuadrícula
-          </Button>
-          <div className="grid grid-cols-2 divide-x">
-            <Button variant="ghost" className="h-12 rounded-none text-primary" onClick={() => setAdding(true)} disabled={reading}>
-              <Plus aria-hidden="true" />
-              Agregar clase
-            </Button>
-            <Button variant="ghost" className="h-12 rounded-none text-primary" onClick={() => fileRef.current?.click()} disabled={reading}>
-              {reading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <FileUp aria-hidden="true" />}
-              {reading ? 'Leyendo horario…' : 'Subir foto o PDF'}
-            </Button>
-          </div>
-        </div>
+        <Button
+          variant="ghost"
+          className="h-12 rounded-none border-t text-primary"
+          onClick={() => setEditingGrid(true)}
+          disabled={schedules === undefined || Boolean(scheduleError)}
+        >
+          <CalendarDays aria-hidden="true" />
+          Armar horario en cuadrícula
+        </Button>
       )}
-      <input ref={fileRef} type="file" accept=".pdf,application/pdf,image/*" className="hidden" onChange={onFile} />
     </div>
   )
 }

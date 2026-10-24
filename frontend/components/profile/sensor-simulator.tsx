@@ -12,7 +12,7 @@ import { Switch } from '@/components/ui/switch'
 import { useCurrentUser, useNow, useSensorEvents, useZonesOccupancy } from '@/hooks/use-data'
 import { getZone, PARKING_ZONES } from '@/lib/config'
 import { formatRelative } from '@/lib/format'
-import { errorMessage, resetDemoData, sensorService } from '@/lib/services'
+import { errorMessage, sensorService } from '@/lib/services'
 import type { ZoneId } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -56,7 +56,7 @@ export function SensorSimulator() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Simulador de sensores"
-        description="Modo demo. Imita los eventos que en producción enviarán los contadores infrarrojos vía AWS IoT Core."
+        description="Modo demo. Manda a la API los mismos eventos que enviarán los contadores infrarrojos; todos ven el cambio."
         backHref="/perfil"
         className="mb-0"
       />
@@ -132,7 +132,7 @@ export function SensorSimulator() {
         <Switch
           id="sensor-online"
           checked={online}
-          onCheckedChange={(v) => sensorService.setOnline(user, zoneId, v)}
+          onCheckedChange={(v) => sensorService.setOnline(user, zoneId, v).catch((err) => toast.error(errorMessage(err)))}
         />
       </div>
 
@@ -163,10 +163,12 @@ export function SensorSimulator() {
       <Button
         variant="ghost"
         className="h-12 text-muted-foreground"
-        onClick={() => {
-          resetDemoData()
-          toast.success('Datos de demostración restablecidos.')
-        }}
+        onClick={() =>
+          sensorService
+            .resetDemo(user)
+            .then(() => toast.success('Datos de demostración restablecidos.'))
+            .catch((err) => toast.error(errorMessage(err)))
+        }
       >
         <RotateCcw aria-hidden="true" />
         Restablecer datos de demo

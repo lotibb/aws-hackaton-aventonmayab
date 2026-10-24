@@ -53,7 +53,8 @@ export function useTrip(user: User, tripId: string) {
 }
 
 export function useZonesOccupancy(user: User) {
-  return useSWR(['parking', 'zones', user.id], () => parkingService.getZonesOccupancy(user))
+  // Other students check in and sensors report at any time.
+  return useSWR(['parking', 'zones', user.id], () => parkingService.getZonesOccupancy(user), { ...keep, ...live })
 }
 
 export function useMyParkingEntry(user: User) {
@@ -77,7 +78,7 @@ export function useProjection(user: User, zoneId: ZoneId, weekday: number, time:
 }
 
 export function useSensorEvents(user: User, zoneId: ZoneId) {
-  return useSWR(['sensors', 'events', user.id, zoneId], () => sensorService.listRecentEvents(user, zoneId), keep)
+  return useSWR(['sensors', 'events', user.id, zoneId], () => sensorService.listRecentEvents(user, zoneId), { ...keep, ...live })
 }
 
 export function useSchedules(user: User) {

@@ -43,7 +43,7 @@ export function ManualCheckIn({ user, zoneId }: { user: User; zoneId: ZoneId }) 
         <DataBadge source="estimado" />
       </div>
       <p className="text-sm leading-relaxed text-muted-foreground">
-        Ayúdanos a validar los sensores. Tu registro solo suma al conteo; nadie más ve en qué zona estás.
+        En esta demo, registrar entrada suma un auto y registrar salida lo resta de tu zona. El ajuste visual se guarda en este navegador; nadie más ve en qué zona estás.
       </p>
       {entry && (
         <p className="rounded-xl bg-primary/8 p-3 text-sm">

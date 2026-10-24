@@ -2,8 +2,16 @@
 // Example: const trips = await api<Trip[]>("/trips?colonia=Montebello");
 //          await api("/trips", { method: "POST", body: { colonia, departureTime, seatsTotal, meetingPoint } });
 import { authService } from "./authService";
+import { ServiceError, type ServiceErrorCode } from "./errors";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL!;
+
+const ERROR_CODES: Record<number, ServiceErrorCode> = {
+  400: "INVALID_INPUT",
+  403: "FORBIDDEN",
+  404: "NOT_FOUND",
+  409: "CONFLICT",
+};
 
 export async function api<T = unknown>(
   path: string,
@@ -19,10 +27,16 @@ export async function api<T = unknown>(
     },
     body: hasBody ? JSON.stringify(options.body) : undefined,
   });
-  if (res.status === 401) throw new Error("Tu sesión expiró, vuelve a iniciar sesión");
-  if (res.status === 429) throw new Error("Demasiadas solicitudes, intenta en un momento");
+  if (res.status === 401) {
+    throw new ServiceError("FORBIDDEN", "Tu sesión expiró, vuelve a iniciar sesión");
+  }
+  if (res.status === 429) {
+    throw new ServiceError("CONFLICT", "Demasiadas solicitudes, intenta en un momento");
+  }
   const data = await res.json().catch(() => null);
   // The backend's error messages are already in Spanish and ready to show.
-  if (!res.ok) throw new Error(data?.message ?? "Error de conexión");
+  if (!res.ok) {
+    throw new ServiceError(ERROR_CODES[res.status] ?? "CONFLICT", data?.message ?? "Error de conexión");
+  }
   return data as T;
 }

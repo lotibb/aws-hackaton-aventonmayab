@@ -33,21 +33,23 @@ export function useCurrentUser(): User {
 }
 
 const keep = { keepPreviousData: true }
+// Other students publish trips and answer requests at any time; poll the API to pick that up.
+const live = { refreshInterval: 5000 }
 
 export function useAvailableTrips(user: User, filters: TripFilters) {
-  return useSWR(['trips', 'available', user.id, filters], () => tripService.listAvailable(user, filters), keep)
+  return useSWR(['trips', 'available', user.id, filters], () => tripService.listAvailable(user, filters), { ...keep, ...live })
 }
 
 export function useMyTrips(user: User) {
-  return useSWR(['trips', 'mine', user.id], () => tripService.listMine(user))
+  return useSWR(['trips', 'mine', user.id], () => tripService.listMine(user), live)
 }
 
 export function useNextTrip(user: User) {
-  return useSWR(['trips', 'next', user.id], () => tripService.getNextTrip(user))
+  return useSWR(['trips', 'next', user.id], () => tripService.getNextTrip(user), live)
 }
 
 export function useTrip(user: User, tripId: string) {
-  return useSWR(['trip', tripId, user.id], () => tripService.getTrip(user, tripId))
+  return useSWR(['trip', tripId, user.id], () => tripService.getTrip(user, tripId), live)
 }
 
 export function useZonesOccupancy(user: User) {

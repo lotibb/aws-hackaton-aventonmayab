@@ -22,7 +22,7 @@ aws cloudformation deploy --region us-east-1 --template-file infra/cognito.yaml 
 aws cloudformation deploy --region us-east-1 --template-file infra/dynamodb.yaml \
   --stack-name aventon-mayab-data
 
-sam build    # instala las dependencias de src/package.json
+sam build    # empaqueta cada Lambda en un solo archivo con esbuild
 sam deploy   # usa samconfig.toml
 
 aws cloudformation deploy --region us-east-1 --template-file infra/frontend.yaml \
@@ -84,10 +84,10 @@ URL: `https://zdm8p9cfd7.execute-api.us-east-1.amazonaws.com` (output `ApiUrl`).
 
 `aventon-schedule-import` manda la foto o el PDF a Claude en [Amazon Bedrock](https://platform.claude.com/docs/en/build-with-claude/claude-in-amazon-bedrock) y devuelve las clases que encontró; no guarda nada, el alumno las revisa antes de agregarlas.
 
-- **Modelo:** parámetro `ScheduleModelId`, por defecto `anthropic.claude-opus-5-5`. Antes del primer uso, habilita el modelo en Console → Amazon Bedrock → Model access (us-east-1).
+- **Modelo:** parámetro `ScheduleModelId`, por defecto `anthropic.claude-opus-5-5`. Antes del primer uso, la cuenta tiene que enviar una vez el formulario de caso de uso de Anthropic (Console → Amazon Bedrock → Model catalog → un modelo de Anthropic) y aceptar la oferta del modelo; sin eso Bedrock responde 403 "not available for this account".
 - **Permiso:** el rol de la Lambda solo tiene `bedrock-mantle:CreateInference`.
 - **Límites:** archivos de hasta 4 MB. Claude tiene 25 s para responder, porque API Gateway corta a los 30 s.
-- **Dependencia:** usa `@anthropic-ai/bedrock-sdk` (en `src/package.json`), por eso hay que correr `sam build` antes de `sam deploy`.
+- **Build:** `sam build` empaqueta cada Lambda con esbuild en un solo archivo (`Metadata: BuildMethod: esbuild` en `template.yaml`). Las de DynamoDB pesan unos KB porque usan el AWS SDK que trae el runtime; la del horario incluye `@anthropic-ai/bedrock-sdk` (~1 MB). Ninguna lleva `node_modules`, así que `sam build` cabe en CloudShell sin usar `/tmp`. Siempre corre `sam build` antes de `sam deploy`.
 
 ## Pruebas
 

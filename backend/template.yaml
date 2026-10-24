@@ -67,6 +67,16 @@ Resources:
 
   TripsFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Format: cjs
+        Platform: node
+        Target: node22
+        EntryPoints:
+          - trips.mjs
+        External:
+          - "@aws-sdk/*"
     Properties:
       FunctionName: aventon-trips
       Handler: trips.handler
@@ -91,6 +101,16 @@ Resources:
 
   ParkingFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Format: cjs
+        Platform: node
+        Target: node22
+        EntryPoints:
+          - parking.mjs
+        External:
+          - "@aws-sdk/*"
     Properties:
       FunctionName: aventon-parking
       Handler: parking.handler
@@ -107,6 +127,16 @@ Resources:
 
   ProfileFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Format: cjs
+        Platform: node
+        Target: node22
+        EntryPoints:
+          - profile.mjs
+        External:
+          - "@aws-sdk/*"
     Properties:
       FunctionName: aventon-profile
       Handler: profile.handler
@@ -140,6 +170,15 @@ Resources:
   # Reads a timetable photo or PDF with Claude in Amazon Bedrock. Nothing is stored.
   ScheduleImportFunction:
     Type: AWS::Serverless::Function
+    # Bundled together with the Bedrock SDK (the runtime doesn't include it).
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Format: cjs
+        Platform: node
+        Target: node22
+        EntryPoints:
+          - schedule-import.mjs
     Properties:
       FunctionName: aventon-schedule-import
       Handler: schedule-import.handler

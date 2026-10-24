@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Aventon Mayab - Lambda functions with the business rules
+
+Parameters:
+  UserPoolId:
+    Type: String
+    Description: Cognito User Pool ID (output of the aventon-mayab-auth stack)
+
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    Architectures:
+      - arm64
+    CodeUri: src
+    MemorySize: 256
+    Timeout: 10
+    Environment:
+      Variables:
+        USERS_TABLE: aventon-users
+        TRIPS_TABLE: aventon-trips
+        SEAT_REQUESTS_TABLE: aventon-seat-requests
+        PARKING_ZONES_TABLE: aventon-parking-zones
+        PARKING_SESSIONS_TABLE: aventon-parking-sessions
+        SCHEDULES_TABLE: aventon-schedules
+
+Resources:
+  TripsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: aventon-trips
+      Handler: trips.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: aventon-trips
+        - DynamoDBCrudPolicy:
+            TableName: aventon-seat-requests
+        - DynamoDBReadPolicy:
+            TableName: aventon-users
+
+  ParkingFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: aventon-parking
+      Handler: parking.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: aventon-parking-zones
+        - DynamoDBCrudPolicy:
+            TableName: aventon-parking-sessions
+
+  ProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: aventon-profile
+      Handler: profile.handler
+      Timeout: 30
+      Environment:
+        Variables:
+          USER_POOL_ID: !Ref UserPoolId
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: aventon-users
+        - DynamoDBCrudPolicy:
+            TableName: aventon-schedules
+        - DynamoDBCrudPolicy:
+            TableName: aventon-trips
+        - DynamoDBCrudPolicy:
+            TableName: aventon-seat-requests
+        - DynamoDBCrudPolicy:
+            TableName: aventon-parking-sessions
+        - Statement:
+            - Effect: Allow
+              Action: cognito-idp:AdminDeleteUser
+              Resource: !Sub arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPoolId}
+
+Outputs:
+  TripsFunctionArn:
+    Value: !GetAtt TripsFunction.Arn
+  ParkingFunctionArn:
+    Value: !GetAtt ParkingFunction.Arn
+  ProfileFunctionArn:
+    Value: !GetAtt ProfileFunction.Arn

@@ -27,14 +27,25 @@ Resources:
           AttributeType: S
         - AttributeName: departureTime
           AttributeType: S
+        - AttributeName: driverId
+          AttributeType: S
       KeySchema:
         - AttributeName: tripId
           KeyType: HASH
-      # Passenger search: trips from a colonia, sorted by departure time.
       GlobalSecondaryIndexes:
+        # Passenger search: trips from a colonia, sorted by departure time.
         - IndexName: byColonia
           KeySchema:
             - AttributeName: colonia
+              KeyType: HASH
+            - AttributeName: departureTime
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        # "Mis viajes" as driver.
+        - IndexName: byDriver
+          KeySchema:
+            - AttributeName: driverId
               KeyType: HASH
             - AttributeName: departureTime
               KeyType: RANGE
@@ -56,6 +67,14 @@ Resources:
           KeyType: HASH
         - AttributeName: passengerId
           KeyType: RANGE
+      # "Mis viajes" as passenger.
+      GlobalSecondaryIndexes:
+        - IndexName: byPassenger
+          KeySchema:
+            - AttributeName: passengerId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
 
   ParkingZonesTable:
     Type: AWS::DynamoDB::Table

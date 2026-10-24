@@ -5,7 +5,7 @@ Este módulo implementa exclusivamente la función de Smart Parking. Ejecuta los
 Backend TypeScript: API Gateway HTTP API → Lambda Node.js 22 → DynamoDB.
 Autenticación con un Cognito existente administrado por el equipo de login.
 
-Este stack crea tablas propias con nombres generados, independientes de `aventon-parking-zones` y `aventon-parking-sessions` de `infra/dynamodb.yaml`. No ejecutar el seed sobre esas tablas compartidas sin acordar el modelo. El `authService.getToken()` actual del repositorio devuelve ID token; usar `fetchAuthSession().tokens.accessToken` para esta API, como en el ejemplo de integración.
+Este stack crea tablas propias con nombres generados, independientes de `aventon-parking-zones` y `aventon-parking-sessions` de `backend/infra/dynamodb.yaml`. No ejecutar el seed sobre esas tablas compartidas sin acordar el modelo. El `authService.getToken()` actual del repositorio devuelve ID token; usar `fetchAuthSession().tokens.accessToken` para esta API, como en el ejemplo de integración.
 
 ## Estado y alcance
 

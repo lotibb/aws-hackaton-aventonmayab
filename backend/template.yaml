@@ -122,6 +122,12 @@ Resources:
         SensorOnline: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/parking/zones/{zoneId}/sensor" } }
         ResetDemo: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: /parking/demo/reset } }
       Policies:
+        - DynamoDBReadPolicy:
+            TableName: aventon-users
+        - Statement:
+            - Effect: Allow
+              Action: dynamodb:ConditionCheckItem
+              Resource: !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/aventon-users
         - DynamoDBCrudPolicy:
             TableName: aventon-parking-zones
         - DynamoDBCrudPolicy:

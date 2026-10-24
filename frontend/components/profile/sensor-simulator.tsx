@@ -9,7 +9,7 @@ import { LIGHT_BG, TrafficLabel } from '@/components/shared/traffic-light'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { useCurrentUser, useNow, useSensorEvents, useZonesOccupancy } from '@/hooks/use-data'
+import { useCurrentUser, useNow, useSensorEvents, useDemoZonesOccupancy } from '@/hooks/use-data'
 import { getZone, PARKING_ZONES } from '@/lib/config'
 import { formatRelative } from '@/lib/format'
 import { errorMessage, sensorService } from '@/lib/services'
@@ -24,7 +24,7 @@ export function SensorSimulator() {
   const now = useNow()
   const [zoneId, setZoneId] = useState<ZoneId>('P1')
   const [rushing, setRushing] = useState(false)
-  const { data: zones } = useZonesOccupancy(user)
+  const { data: zones } = useDemoZonesOccupancy(user)
   const { data: events } = useSensorEvents(user, zoneId)
   const z = zones?.find((o) => o.zone.id === zoneId)
   const online = z?.sensorStatus.online ?? true
@@ -56,7 +56,7 @@ export function SensorSimulator() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Simulador de sensores"
-        description="Modo demo. Manda a la API los mismos eventos que enviarán los contadores infrarrojos; todos ven el cambio."
+        description="Simulador aislado. Sus eventos se guardan en la API, pero no modifican el conteo real de entradas registradas ni las sesiones."
         backHref="/perfil"
         className="mb-0"
       />

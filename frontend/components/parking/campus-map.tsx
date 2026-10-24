@@ -32,7 +32,7 @@ export function CampusMap({ zones, selectedId, onSelect }: {
                 'absolute flex size-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 text-lg font-bold shadow-md transition-[box-shadow,background-color] focus-visible:z-20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring',
                 LIGHT_STYLE[z.light],
                 z.zone.id === selectedId && 'z-10 ring-4 ring-foreground ring-offset-2 ring-offset-card',
-                !z.sensorStatus.online && 'border-dashed',
+                z.source !== 'registrado' && !z.sensorStatus.online && 'border-dashed',
               )}
             >
               E
@@ -45,9 +45,9 @@ export function CampusMap({ zones, selectedId, onSelect }: {
         <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-success" aria-hidden="true" />Disponible</span>
         <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-warning" aria-hidden="true" />Disponibilidad limitada</span>
         <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-destructive" aria-hidden="true" />Alta ocupación</span>
-        <span>Borde discontinuo: sensores fuera de línea</span>
+        {zones.some((z) => z.source !== 'registrado') && <span>Borde discontinuo: sensores fuera de línea</span>}
       </div>
-      <p className="px-1 text-xs text-muted-foreground">Capacidades estimadas para demostración, no oficiales. Ubicaciones P9 y P10 aproximadas según el mapa institucional.</p>
+      <p className="px-1 text-xs text-muted-foreground">Capacidades aproximadas, no oficiales. Disponibilidad calculada con registros de entrada y salida. Ubicaciones P9 y P10 aproximadas según el mapa institucional.</p>
     </div>
   )
 }

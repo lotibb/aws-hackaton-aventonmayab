@@ -5,7 +5,7 @@ const assert = require('node:assert/strict')
 
 require.extensions['.ts'] = (module, filename) => module._compile(
   ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true },
   }).outputText,
   filename,
 )
@@ -48,57 +48,59 @@ for (const zone of PARKING_ZONES) {
     assert.ok(points.every((point) => Number.isFinite(point.percentage) && point.percentage >= 0 && point.percentage <= 100))
   }
 }
-// The backend creates the zones; they must match the app's (ids, capacities, names).
-const backend = fs.readFileSync(require('node:path').join(__dirname, '../../backend/src/parking.mjs'), 'utf8')
-const backendZones = [...backend.matchAll(/zoneId: "(P\d+)", name: "([^"]+)", area: "[^"]+", capacity: (\d+), demo: \{ sensorCount: (\d+), manualCount: (\d+) \}/g)]
-  .map(([, zoneId, name, capacity, sensorCount, manualCount]) => ({ zoneId, name, capacity: +capacity, sensorCount: +sensorCount, manualCount: +manualCount }))
-assert.deepEqual(backendZones.map((z) => [z.zoneId, z.name, z.capacity]), PARKING_ZONES.map((z) => [z.id, z.name, z.capacity]), 'backend/src/parking.mjs zones match lib/config.ts')
-for (const z of backendZones) assert.ok(z.sensorCount <= z.capacity && z.manualCount <= z.capacity, `${z.zoneId} demo counts fit`)
 
-// Parking now runs on the API: answer its routes the way backend/src/parking.mjs does.
-process.env.NEXT_PUBLIC_API_URL = 'http://api.test'
-let session = null
-const calls = []
-const zonesFromApi = backendZones.map((z) => ({ ...z, area: '', sensorOnline: z.zoneId !== 'P4', lastReadingAt: new Date().toISOString(), recentEvents: [] }))
-global.fetch = async (url, init = {}) => {
-  const path = new URL(url).pathname
-  const method = init.method ?? 'GET'
-  const body = init.body ? JSON.parse(init.body) : undefined
-  calls.push(`${method} ${path}`)
-  const reply = (status, data) => ({ ok: status < 400, status, json: async () => data })
-  if (method === 'GET' && path === '/parking/zones') return reply(200, [...zonesFromApi, { zoneId: 'TEST-x', capacity: 5 }])
-  if (method === 'GET' && path === '/parking/session') return reply(200, { session })
-  if (method === 'POST' && path === '/parking/entry') {
-    if (session) return reply(409, { message: 'Ya tienes una entrada activa. Registra tu salida primero.' })
-    session = { userId: 'u', zoneId: body.zoneId, enteredAt: new Date().toISOString() }
-    return reply(200, { session })
-  }
-  if (method === 'POST' && path === '/parking/exit') {
-    if (!session) return reply(409, { message: 'No tienes una entrada activa' })
-    const old = session
-    session = null
-    return reply(200, { session: old })
-  }
-  return reply(404, { message: 'Ruta no encontrada' })
-}
+// The HTTP boundary is stubbed, not AWS: verify that the actual service uses
+// authenticated requests and never reads or changes the legacy parking counts.
+process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID = 'us-east-1_test'
+process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID = 'testclient'
+process.env.NEXT_PUBLIC_API_URL = 'https://parking.example.test'
+const { authService } = require('../lib/services/authService.ts')
+authService.getToken = async () => 'test-token'
 const { parkingService } = require('../lib/services/parking-service.ts')
-parkingService.getZonesOccupancy(db.users[0]).then(async (zones) => {
-  assert.deepEqual(zones.map((z) => z.zone.id), PARKING_ZONES.map((z) => z.id), 'only the ten campus zones, in order')
-  for (const occupancy of zones) {
-    assert.ok(occupancy.occupied >= 0 && occupancy.occupied <= occupancy.zone.capacity)
-    assert.ok(Number.isFinite(occupancy.percentage))
-    // Sensors online show the simulator's count; offline, the manual estimate.
-    const api = zonesFromApi.find((z) => z.zoneId === occupancy.zone.id)
-    assert.equal(occupancy.source, api.sensorOnline ? 'simulado' : 'estimado')
-    assert.equal(occupancy.occupied, api.sensorOnline ? api.sensorCount : api.manualCount)
-  }
+const { toOccupancies } = require('../lib/services/parking-api.ts')
+const responses = []
+const requests = []
+global.fetch = async (url, options) => {
+  requests.push({ url, ...options })
+  assert.equal(options.headers.Authorization, 'Bearer test-token')
+  const response = responses.shift()
+  assert.ok(response, 'Unexpected HTTP request')
+  return new Response(JSON.stringify(response.body), { status: response.status ?? 200 })
+}
+async function checkApi() {
+  const localBefore = stored
+  const rows = PARKING_ZONES.map((zone) => ({ zoneId: zone.id, name: zone.name, capacity: zone.capacity,
+    capacityEstimated: true, occupied: 1, available: zone.capacity - 1,
+    occupancyPercentage: Math.round(100 / zone.capacity), source: 'registrado', sensorOnline: false }))
+  responses.push({ body: [...rows].reverse() })
+  const zones = await parkingService.getZonesOccupancy(db.users[0])
+  assert.equal(requests.at(-1).cache, 'no-store')
+  assert.deepEqual(zones.map((z) => z.zone.id), PARKING_ZONES.map((z) => z.id))
+  assert.ok(zones.every((z) => z.occupied === 1 && z.source === 'registrado'))
+  assert.throws(() => toOccupancies(rows.filter((z) => z.zoneId !== 'P9')), /P9/)
+  assert.throws(() => toOccupancies(rows.map((z) => ({ ...z, occupied: null }))))
   for (const zoneId of ['P9', 'P10']) {
+    responses.push({ body: { session: { zoneId, enteredAt: '2026-01-01T00:00:00Z' } } })
     await parkingService.checkIn(db.users[0], zoneId)
+    assert.equal(requests.at(-1).url, 'https://parking.example.test/parking/entry')
+    assert.deepEqual(JSON.parse(requests.at(-1).body), { zoneId })
+    responses.push({ body: { session: { zoneId, zoneName: zoneId, enteredAt: '2026-01-01T00:00:00Z' } } })
     assert.equal((await parkingService.getMyActiveEntry(db.users[0])).zoneId, zoneId)
-    await assert.rejects(() => parkingService.checkIn(db.users[0], zoneId))
+    responses.push({ status: 409, body: { message: 'Ya tienes una entrada activa' } })
+    await assert.rejects(() => parkingService.checkIn(db.users[0], zoneId), (error) => error.code === 'CONFLICT')
+    responses.push({ body: { session: { zoneId }, exitedAt: '2026-01-01T01:00:00Z', minutes: 60 } })
     await parkingService.checkOut(db.users[0])
+    assert.equal(requests.at(-1).url, 'https://parking.example.test/parking/exit')
+    assert.equal(requests.at(-1).body, undefined, 'Exit must use the server session, not the selected zone')
+    responses.push({ body: { session: null } })
     assert.equal(await parkingService.getMyActiveEntry(db.users[0]), null)
   }
-  assert.ok(calls.includes('POST /parking/entry') && calls.includes('POST /parking/exit'))
-  console.log('PASS: legacy migration preserves user data; ten zones match the backend and have valid occupancy and seven-day forecasts; P9/P10 entry, duplicate protection and exit go through the API.')
-}).catch((error) => { console.error(error); process.exitCode = 1 })
+  responses.push({ body: { session: { zoneId: 'A', zoneName: 'Zona antigua', enteredAt: '2026-01-01T00:00:00Z' } } })
+  assert.equal((await parkingService.getMyActiveEntry(db.users[0])).zoneName, 'Zona antigua')
+  responses.push({ status: 500, body: { message: 'Error interno' } })
+  await assert.rejects(() => parkingService.getZonesOccupancy(db.users[0]), /Error interno/)
+  assert.equal(stored, localBefore, 'Real parking calls must not mutate the mock DB')
+  assert.equal(responses.length, 0)
+  console.log('PASS: legacy migration; ten-zone forecasts; authenticated parking API calls, server counts, legacy sessions, conflicts and errors without local fallback (stubbed HTTP).')
+}
+checkApi().catch((error) => { console.error(error); process.exitCode = 1 })

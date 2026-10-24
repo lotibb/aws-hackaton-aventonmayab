@@ -113,6 +113,8 @@ const CORS = {
 };
 
 await createTables();
+const { syncParkingZones } = await import("../src/scripts/sync-parking-zones.mjs");
+await syncParkingZones(process.env.PARKING_ZONES_TABLE);
 const routes = readRoutes();
 const handlers = {};
 for (const name of new Set(routes.map((r) => r.handler))) {

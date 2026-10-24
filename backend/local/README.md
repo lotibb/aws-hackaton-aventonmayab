@@ -12,7 +12,7 @@ npm install --prefix backend/src
 node backend/local/server.mjs
 ```
 
-Crea las 6 tablas la primera vez y deja la API en `http://localhost:4000`. Cada llamada aparece en la terminal con su código de respuesta.
+Crea las 6 tablas la primera vez, sincroniza P1–P10 sin reiniciar contadores y deja la API en `http://localhost:4000`. Cada llamada aparece en la terminal con su código de respuesta.
 
 ## 2. Arrancar el frontend apuntando a ella (otra terminal)
 
@@ -34,14 +34,13 @@ Abre `http://localhost:3000`. Para probar con dos alumnos a la vez, usa una vent
 
 ## Qué probar en estacionamiento
 
-1. **Estacionamiento** e **Inicio**: las 10 zonas (P1–P10) con su ocupación. Se crean solas la primera vez.
-2. **Registrar entrada** y luego **Registrar salida**: el estimado de la zona sube y baja; en la otra ventana se ve en unos 5 s.
-3. **Perfil → Simulador de sensores**: *Simular entrada/salida*, *Hora pico*, el interruptor *Sensores en línea* (con los sensores apagados la zona muestra el estimado manual) y *Restablecer datos de demo*.
+1. **Estacionamiento** e **Inicio**: las 10 zonas (P1–P10) con entradas registradas (inicialmente cero).
+2. **Registrar entrada** y luego **Registrar salida**: el conteo persistido sube y baja; en la otra ventana se ve en unos 5 s. No se admiten dobles entradas ni sobrecapacidad.
+3. **Perfil → Simulador de sensores**: *Restablecer datos de demo*, *Simular entrada/salida*, *Hora pico* y el interruptor *Sensores en línea*. Estos campos están aislados de `registeredOccupied`: ni simular ni restablecer altera sesiones, conteos reales o capacidades configuradas.
 4. **Perfil → Horario**: agrega una clase; la **Proyección** y "Tu primera clase" de Estacionamiento ya la cuentan.
 
 ## Notas
 
 - **No verifica la firma del token**, solo lo lee (API Gateway sí lo verifica en AWS). Es solo para tu máquina.
-- **Subir horario en foto o PDF no funciona en local**: llama a Claude en Amazon Bedrock y necesita credenciales de AWS.
 - **Los datos viven en el contenedor.** Para empezar de cero: `docker rm -f aventon-ddb` y vuelve a crearlo.
 - **Otro puerto:** `PORT=4100 node backend/local/server.mjs`. Otra dirección de DynamoDB: `DYNAMODB_URL=...`.

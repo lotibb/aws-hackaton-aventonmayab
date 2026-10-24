@@ -54,16 +54,38 @@ Perfil público (`driver`, `passenger`): `{ id, name, colonia, photoUrl, phone? 
 
 | Ruta | Body | Respuesta |
 | --- | --- | --- |
-| `GET /parking/zones` | | Zonas del campus (P1–P10 se crean solas la primera vez, ordenadas por número): `{ zoneId, name, area, capacity, sensorCount, manualCount, sensorOnline, lastReadingAt, recentEvents }` |
+| `GET /parking/zones` | | Lista de zonas con `occupied`, `available`, `occupancyPercentage`, `source: "registrado"`, `capacityEstimated` y `updatedAt`. Conserva `sensorOnline` y los metadatos anteriores |
 | `GET /parking/session` | | `{ session }` activa o `null` |
-| `POST /parking/entry` | `{ zoneId }` | `{ session }` y `manualCount` +1 (sin pasar de `capacity`); 409 si ya hay una activa |
-| `POST /parking/exit` | | `{ session, exitedAt, minutes }` y `manualCount` −1 (sin bajar de 0); 409 si no hay activa |
+| `POST /parking/entry` | `{ zoneId }` | `{ session }`; suma un ocupado y crea la sesión atómicamente. 409 si hay una activa, no hay capacidad o la zona aún no está configurada |
+| `POST /parking/exit` | | `{ session, exitedAt, minutes }`; 409 si no hay activa |
 | `GET /parking/presence` | | `{ byWeekday: { 0-6: number[] }, max }`: cuántos alumnos tienen clase en cada bloque de 10 min de 6:00 a 21:00 (llegan 20 min antes, se van 10 min después). Solo conteos de todos los horarios, nunca horarios individuales |
 | `POST /parking/sensor-events` | `{ zoneId, sensorType: "entrada" \| "salida" }` | Lo que manda un contador infrarrojo (hoy, el simulador): `sensorCount` ±1 entre 0 y `capacity`, guarda la lectura en `recentEvents` (últimas 10). 409 si los sensores de la zona están apagados |
 | `POST /parking/zones/{zoneId}/sensor` | `{ online: boolean }` | Prende o apaga los sensores de una zona (simulador) |
-| `POST /parking/demo/reset` | | Regresa las zonas P1–P10 a los conteos de la demo. Las entradas activas se conservan |
+| `POST /parking/demo/reset` | | Restablece solo los campos del simulador. Conserva `registeredOccupied`, capacidades y sesiones reales |
 
-La app muestra `sensorCount` cuando `sensorOnline` es `true` ("Simulado", porque hoy los contadores son del simulador) y `manualCount` cuando no ("Estimado"); si difieren más de 10% de la capacidad marca "Datos en revisión". Las proyecciones combinan `/parking/presence` con un patrón histórico de demostración (`frontend/lib/projections.ts`).
+El simulador muestra `sensorCount` o `manualCount`, identificado como "Simulado". Parking muestra exclusivamente `registeredOccupied`, identificado como "Registrado". Las proyecciones conservan `/parking/presence` y la fórmula de `frontend/lib/projections.ts`.
+
+Las rutas existentes conservan respuesta HTTP 200 y errores `{ message }`. La sesión incluye
+`userId`, `zoneId`, `zoneName`, `enteredAt`, `sessionId` y `occupancyCounted: true`.
+La salida conserva `{ session, exitedAt, minutes }`, donde `session` es la sesión cerrada.
+El usuario siempre se obtiene del token; el body no puede registrar movimientos de otro alumno.
+
+La ocupación real de registros se guarda en `registeredOccupied` en la tabla existente
+`aventon-parking-zones`, separada de `currentCount`/lecturas físicas. No se suman ambos conteos.
+La salida y `DELETE /me` descuentan únicamente sesiones con `occupancyCounted: true`.
+Las sesiones antiguas se pueden cerrar, pero no descuentan un auto que nunca fue sumado por este flujo.
+La entrada verifica que exista el perfil y que no tenga `deletingAt`; `DELETE /me` marca
+el perfil antes de cerrar su sesión, evitando nuevas entradas durante la eliminación.
+Las zonas sin inicializar devuelven `occupied`, `available` y `occupancyPercentage` en `null`;
+no se interpretan como vacías. Ejecutar la sincronización documentada en `backend/README.md`.
+
+Las diez zonas y capacidades aproximadas se comparten mediante
+`backend/src/lib/parking-catalog.json`. La sincronización conserva contadores, sesiones,
+lecturas de sensores y zonas antiguas. El catálogo no convierte capacidades en cifras oficiales.
+El frontend consulta zonas y sesión cada cinco segundos y después de cada operación, incluso ante 409.
+Los datos no se sustituyen por demostraciones locales cuando falla la API.
+El conteo representa entradas registradas, no vehículos sin registrar. Los pronósticos existentes
+siguen siendo estimados y no modifican el conteo almacenado.
 
 ## Perfil y horario
 

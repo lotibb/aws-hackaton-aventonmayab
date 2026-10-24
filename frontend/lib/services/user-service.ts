@@ -256,7 +256,7 @@ export const userService = {
     } catch {
       throw new ServiceError('CONFLICT', 'No pudimos eliminar tu cuenta. Vuelve a iniciar sesión e inténtalo de nuevo.')
     }
-    // Clear the local schedule cache and parking check-ins after deleting the account.
+    // Clean legacy local data too; real parking sessions are closed by DELETE /me.
     writeDb((db) => {
       db.schedules = db.schedules.filter((s) => s.userId !== user.id)
       db.parkingEvents = db.parkingEvents.filter((e) => e.userId !== user.id)

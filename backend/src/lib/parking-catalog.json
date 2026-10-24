@@ -1,0 +1,12 @@
+[
+  { "id": "P1", "name": "Canchas y Salud I - Trasera", "area": "Canchas y Salud I", "capacity": 80, "capacityEstimated": true, "mapPosition": { "x": 19.9, "y": 16.3 }, "demandFactor": 0.68 },
+  { "id": "P2", "name": "Central y LIIET - Trasera", "area": "Central y LIIET", "capacity": 85, "capacityEstimated": true, "mapPosition": { "x": 58.3, "y": 16.3 }, "demandFactor": 0.98 },
+  { "id": "P3", "name": "tecniA", "area": "Parque Tecnológico y de Innovación", "capacity": 65, "capacityEstimated": true, "mapPosition": { "x": 8.9, "y": 60 }, "demandFactor": 0.68 },
+  { "id": "P4", "name": "Salud - Posterior", "area": "Edificios de Salud", "capacity": 40, "capacityEstimated": true, "mapPosition": { "x": 33.6, "y": 55.3 }, "demandFactor": 1.02 },
+  { "id": "P5", "name": "Central - Jardines", "area": "Estacionamiento central, junto a la glorieta", "capacity": 95, "capacityEstimated": true, "mapPosition": { "x": 42.2, "y": 55.3 }, "demandFactor": 1.08 },
+  { "id": "P6", "name": "Le Cordon Bleu", "area": "Hacienda Mayab", "capacity": 35, "capacityEstimated": true, "mapPosition": { "x": 52.5, "y": 67.6 }, "demandFactor": 0.98 },
+  { "id": "P7", "name": "Rectoría", "area": "Frente a Rectoría y LABICAM", "capacity": 65, "capacityEstimated": true, "mapPosition": { "x": 74.7, "y": 57.6 }, "demandFactor": 1.08 },
+  { "id": "P8", "name": "Edificio 5 - Trasera", "area": "Arquitectura, Diseño, Comunicación e Ingeniería", "capacity": 35, "capacityEstimated": true, "mapPosition": { "x": 93.1, "y": 42.5 }, "demandFactor": 0.98 },
+  { "id": "P9", "name": "Subway - Central", "area": "Junto a Subway y el edificio Central · ubicación aproximada", "capacity": 35, "capacityEstimated": true, "mapPosition": { "x": 57.7, "y": 49.3 }, "demandFactor": 1.08 },
+  { "id": "P10", "name": "Edificio 5 - Lateral", "area": "Entre Edificio 5 y LABICAM · ubicación aproximada", "capacity": 25, "capacityEstimated": true, "mapPosition": { "x": 86.3, "y": 56.5 }, "demandFactor": 0.98 }
+]

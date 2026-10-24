@@ -2,7 +2,12 @@
   "name": "aventon-mayab-lambdas",
   "version": "1.0.0",
   "private": true,
-  "description": "sam build bundles each Lambda into a single file with esbuild, so none of them ships node_modules. The AWS SDK comes with the Node.js runtime and stays out of the bundles; the devDependencies only run the API locally (backend/local).",
+  "description": "sam build bundles each Lambda with esbuild; AWS SDK devDependencies support the local API and integration checks.",
+  "scripts": {
+    "test:parking": "node --test ../tests/parking.test.mjs",
+    "test:parking:ddb": "node --test ../tests/parking-ddb.test.mjs",
+    "parking:sync": "node scripts/sync-parking-zones.mjs"
+  },
   "dependencies": {
     "esbuild": "0.28.2"
   },

@@ -143,6 +143,7 @@ export interface ParkingEvent {
   id: string
   userId: string
   zoneId: ZoneId
+  zoneName?: string
   type: 'entrada' | 'salida'
   timestamp: string
 }
@@ -175,7 +176,7 @@ export interface Schedule {
   room?: string
 }
 
-export type DataSource = 'verificado' | 'estimado' | 'simulado'
+export type DataSource = 'verificado' | 'estimado' | 'simulado' | 'registrado'
 
 export type TrafficLight = 'verde' | 'amarillo' | 'rojo'
 
@@ -185,6 +186,7 @@ export interface ZoneOccupancy {
   percentage: number
   light: TrafficLight
   source: DataSource
+  updatedAt?: string
   sensorStatus: SensorStatus
   sensorOccupied: number
   manualEstimate: number

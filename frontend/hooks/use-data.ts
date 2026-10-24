@@ -58,7 +58,7 @@ export function useZonesOccupancy(user: User) {
 }
 
 export function useMyParkingEntry(user: User) {
-  return useSWR(['parking', 'my-entry', user.id], () => parkingService.getMyActiveEntry(user))
+  return useSWR(['parking', 'my-entry', user.id], () => parkingService.getMyActiveEntry(user), live)
 }
 
 export function useForecast(user: User, zoneId: ZoneId, weekday: number) {
@@ -79,6 +79,10 @@ export function useProjection(user: User, zoneId: ZoneId, weekday: number, time:
 
 export function useSensorEvents(user: User, zoneId: ZoneId) {
   return useSWR(['sensors', 'events', user.id, zoneId], () => sensorService.listRecentEvents(user, zoneId), { ...keep, ...live })
+}
+
+export function useDemoZonesOccupancy(user: User) {
+  return useSWR(['sensors', 'demo-zones', user.id], () => sensorService.getDemoZonesOccupancy(user), live)
 }
 
 export function useSchedules(user: User) {

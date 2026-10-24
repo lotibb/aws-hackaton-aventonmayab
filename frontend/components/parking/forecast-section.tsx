@@ -74,8 +74,8 @@ export function ForecastSection({ user, zoneId }: { user: User; zoneId: ZoneId }
       )}
 
       <p className="text-xs leading-relaxed text-muted-foreground">
-        Basado en horarios de clase agregados (llegadas 20 min antes de cada clase) y patrones históricos de demostración. Nunca se
-        usan horarios individuales.
+        Proyección estimada con horarios agregados de la API (llegadas 20 min antes de cada clase) y patrones históricos de referencia.
+        No se comparten horarios individuales. Esta proyección no modifica el conteo real de entradas y salidas.
       </p>
 
       {rec && (

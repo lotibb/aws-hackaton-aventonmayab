@@ -47,7 +47,12 @@ export function ZoneDetail({ occupancy: o }: { occupancy: ZoneOccupancy }) {
         <div className={cn('h-full rounded-full transition-all duration-500', LIGHT_BG[o.light])} style={{ width: `${o.percentage}%` }} />
       </div>
 
-      {online ? (
+      {o.source === 'registrado' ? (
+        <p className="text-sm text-muted-foreground">
+          Conteo de entradas registradas en el servidor; no incluye vehículos sin registro.
+          {o.updatedAt && <> Última actualización {formatRelative(o.updatedAt, now)}.</>}
+        </p>
+      ) : online ? (
         <p className="flex items-center gap-2 text-sm">
           <Radio className="size-4 text-success" aria-hidden="true" />
           <span className="font-medium">Sensores en línea</span>

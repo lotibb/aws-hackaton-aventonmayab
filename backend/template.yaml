@@ -12,7 +12,7 @@ Globals:
     Runtime: nodejs22.x
     Architectures:
       - arm64
-    CodeUri: ../backend/src
+    CodeUri: src
     MemorySize: 256
     Timeout: 10
     Environment:

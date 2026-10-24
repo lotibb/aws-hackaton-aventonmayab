@@ -1,0 +1,18 @@
+# Dependencies and builds
+node_modules/
+.next/
+out/
+.vercel/
+.aws-sam/
+__pycache__/
+*.pyc
+
+# Local env files (never commit keys)
+.env
+.env*.local
+!.env.example
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

@@ -4,7 +4,6 @@
   "private": true,
   "description": "sam build bundles each Lambda into a single file with esbuild, so none of them ships node_modules. The AWS SDK comes with the Node.js runtime and stays out of the bundles.",
   "dependencies": {
-    "@anthropic-ai/bedrock-sdk": "0.34.4",
     "esbuild": "0.28.2"
   }
 }

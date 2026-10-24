@@ -76,18 +76,10 @@ URL: `https://zdm8p9cfd7.execute-api.us-east-1.amazonaws.com` (output `ApiUrl`).
 | `aventon-trips` | `trips.mjs` | viajes y solicitudes de asiento |
 | `aventon-parking` | `parking.mjs` | zonas, entrada y salida |
 | `aventon-profile` | `profile.mjs` | perfil, horario y borrar cuenta |
-| `aventon-schedule-import` | `schedule-import.mjs` | lee un horario en foto o PDF con Claude |
 
 `src/lib/` tiene el código compartido: el router, el usuario del token y el cliente de DynamoDB. Las rutas y reglas están en [`docs/api.md`](../docs/api.md).
 
-### Importar horario (Claude en Amazon Bedrock)
-
-`aventon-schedule-import` manda la foto o el PDF a Claude en [Amazon Bedrock](https://platform.claude.com/docs/en/build-with-claude/claude-in-amazon-bedrock) y devuelve las clases que encontró; no guarda nada, el alumno las revisa antes de agregarlas.
-
-- **Modelo:** parámetro `ScheduleModelId`, por defecto `anthropic.claude-opus-5-5`. Antes del primer uso, la cuenta tiene que enviar una vez el formulario de caso de uso de Anthropic (Console → Amazon Bedrock → Model catalog → un modelo de Anthropic) y aceptar la oferta del modelo; sin eso Bedrock responde 403 "not available for this account".
-- **Permiso:** el rol de la Lambda solo tiene `bedrock-mantle:CreateInference`.
-- **Límites:** archivos de hasta 4 MB. Claude tiene 25 s para responder, porque API Gateway corta a los 30 s.
-- **Build:** `sam build` empaqueta cada Lambda con esbuild en un solo archivo (`Metadata: BuildMethod: esbuild` en `template.yaml`). Las de DynamoDB pesan unos KB porque usan el AWS SDK que trae el runtime; la del horario incluye `@anthropic-ai/bedrock-sdk` (~1 MB). Ninguna lleva `node_modules`, así que `sam build` cabe en CloudShell sin usar `/tmp`. Siempre corre `sam build` antes de `sam deploy`.
+Build: `sam build` empaqueta cada Lambda con esbuild en un solo archivo (`Metadata: BuildMethod: esbuild` en `template.yaml`). Usan el AWS SDK que trae el runtime, así que pesan unos KB y ninguna lleva `node_modules`; `sam build` cabe en CloudShell sin usar `/tmp`. Siempre corre `sam build` antes de `sam deploy`.
 
 ## Pruebas
 

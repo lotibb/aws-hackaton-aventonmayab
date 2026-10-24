@@ -91,6 +91,8 @@ URL: `https://zdm8p9cfd7.execute-api.us-east-1.amazonaws.com` (output `ApiUrl`).
 
 ## Pruebas
 
+**En tu máquina, sin desplegar:** [`local/README.md`](local/README.md) corre la API completa contra DynamoDB Local.
+
 `tests/integration_test.py` llama a las Lambdas desplegadas con los mismos eventos que manda API Gateway. Prueba todas las reglas, incluyendo 5 aceptaciones simultáneas por el último lugar y 5 entradas simultáneas al estacionamiento. Crea datos de prueba y los borra al final.
 
 ```sh

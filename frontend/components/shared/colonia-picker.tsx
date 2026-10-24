@@ -4,7 +4,7 @@ import { Check, ChevronsUpDown, MapPin } from 'lucide-react'
 import { useState } from 'react'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { COLONIAS, type Colonia } from '@/lib/types'
+import { COLONIA_CATALOG, type Colonia } from '@/lib/colonias'
 import { cn } from '@/lib/utils'
 
 /** Searchable list of colonias. Only neighborhoods are ever stored, never street addresses. */
@@ -39,7 +39,7 @@ export function ColoniaPicker({
       </PopoverTrigger>
       <PopoverContent className="w-(--anchor-width) p-0" align="start">
         <Command>
-          <CommandInput placeholder="Buscar colonia…" />
+          <CommandInput placeholder="Buscar colonia o código postal…" />
           <CommandList>
             <CommandEmpty>No encontramos esa colonia.</CommandEmpty>
             <CommandGroup>
@@ -55,18 +55,24 @@ export function ColoniaPicker({
                   Todas las colonias
                 </CommandItem>
               )}
-              {COLONIAS.map((c) => (
+              {COLONIA_CATALOG.map((c) => (
                 <CommandItem
-                  key={c}
-                  value={c}
+                  key={c.name}
+                  value={c.name}
+                  keywords={[c.cp, c.municipio]}
                   onSelect={() => {
-                    onChange(c)
+                    onChange(c.name)
                     setOpen(false)
                   }}
                   className="min-h-10"
                 >
-                  <Check className={cn('size-4', value === c ? 'opacity-100' : 'opacity-0')} aria-hidden="true" />
-                  {c}
+                  <Check className={cn('size-4', value === c.name ? 'opacity-100' : 'opacity-0')} aria-hidden="true" />
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate">{c.name}</span>
+                    <span className="text-xs text-muted-foreground">
+                      CP {c.cp} · {c.municipio}
+                    </span>
+                  </span>
                 </CommandItem>
               ))}
             </CommandGroup>

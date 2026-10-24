@@ -21,8 +21,8 @@ Todas las rutas requieren `Authorization: Bearer <token>`, con el token de `auth
 
 | Ruta | Body | Respuesta |
 | --- | --- | --- |
-| `GET /trips?colonia=&from=` | | Viajes `Disponible` de otros conductores, con lugares y ordenados por hora. Incluye `driver` y `myRequest`. `from` (ISO) es opcional; por defecto, ahora |
-| `POST /trips` | `{ colonia, departureTime, seatsTotal (1-8), meetingPoint, routeDescription?, destination? }` | El viaje creado |
+| `GET /trips?lat=&lng=&radiusKm=&from=` | | Viajes `Disponible` de otros conductores, con lugares y ordenados por hora. Incluye `driver` y `myRequest`. Con `lat`/`lng` (centro de la colonia del pasajero) solo devuelve los que salen a menos de `radiusKm` (por defecto 3, máximo 15), cada uno con `distanceKm`. `from` (ISO) es opcional; por defecto, ahora. `colonia=` (coincidencia exacta) sigue funcionando |
+| `POST /trips` | `{ colonia, departureTime, seatsTotal (1-8), meetingPoint, routeDescription?, destination?, originLat?, originLng? }` | El viaje creado. `originLat`/`originLng` son el centro de la colonia de salida (dentro de Yucatán) |
 | `GET /trips/{tripId}` | | Viaje + `myRequest`. El conductor recibe además `requests`. 404 si nunca pediste lugar y el viaje ya no está `Disponible` |
 | `GET /me/trips` | | `{ asDriver: [{ ...viaje, requests }], asPassenger: [{ ...viaje, myRequest }] }` |
 | `POST /trips/{tripId}/requests` | `{ consent: true }` | Solicitud `pending`. Sin consentimiento, 400 |
@@ -31,7 +31,9 @@ Todas las rutas requieren `Authorization: Bearer <token>`, con el token de `auth
 | `POST /trips/{tripId}/requests/{passengerId}/reject` | | Solo el conductor |
 | `POST /trips/{tripId}/status` | `{ status: "En curso" \| "Finalizado" \| "Cancelado" }` | Solo el conductor. Al pasar a `En curso`, las solicitudes pendientes se rechazan |
 
-Viaje: `{ tripId, driverId, driver, colonia, destination?, routeDescription?, departureTime, seatsTotal, seatsLeft, meetingPoint?, status, createdAt, myRequest, requests? }`
+Viaje: `{ tripId, driverId, driver, colonia, lat?, lng?, distanceKm?, destination?, routeDescription?, departureTime, seatsTotal, seatsLeft, meetingPoint?, status, createdAt, myRequest, requests? }`
+
+`lat`/`lng` son el centro aproximado de la colonia (del catálogo `frontend/lib/colonias-data.json`), nunca la ubicación de una persona.
 
 Solicitud: `{ tripId, passengerId, status, consentGivenAt, createdAt, updatedAt, passenger? }`
 

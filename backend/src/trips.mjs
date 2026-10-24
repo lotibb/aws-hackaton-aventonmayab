@@ -27,6 +27,26 @@ function toIso(value) {
   return date.toISOString();
 }
 
+// Colonia centers (never a person's location) are only accepted inside the Yucatán area.
+const YUCATAN = { minLat: 19.5, maxLat: 21.8, minLng: -90.5, maxLng: -87.4 };
+const MAX_RADIUS_KM = 15;
+
+function coordinate(value, min, max) {
+  const n = Number(value);
+  if (value === undefined || value === null || value === "" || !Number.isFinite(n) || n < min || n > max) {
+    return undefined;
+  }
+  return n;
+}
+
+function distanceKm(lat1, lng1, lat2, lng2) {
+  const rad = Math.PI / 180;
+  const a =
+    Math.sin(((lat2 - lat1) * rad) / 2) ** 2 +
+    Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(((lng2 - lng1) * rad) / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(a));
+}
+
 function optionalText(value, field, max) {
   if (value === undefined || value === null || value === "") return undefined;
   if (typeof value !== "string" || value.trim().length > max) {
@@ -154,14 +174,26 @@ function requestStatusUpdate(tripId, passengerId, from, to) {
   };
 }
 
-// GET /trips?colonia=&from=  Other drivers' open trips with free seats, by departure time.
+// GET /trips?lat=&lng=&radiusKm=&from=  Other drivers' open trips with free seats, by departure time.
+// With lat/lng (the center of the passenger's colonia) only trips leaving within radiusKm are returned,
+// each with its distanceKm. `colonia=` (exact match) is still accepted.
 async function listTrips(event) {
   const me = caller(event);
-  const { colonia, from } = event.queryStringParameters ?? {};
+  const { colonia, from, lat, lng, radiusKm } = event.queryStringParameters ?? {};
   const since = from ? toIso(from) : new Date().toISOString();
+  const center = {
+    lat: coordinate(lat, YUCATAN.minLat, YUCATAN.maxLat),
+    lng: coordinate(lng, YUCATAN.minLng, YUCATAN.maxLng),
+  };
+  const nearby = center.lat !== undefined && center.lng !== undefined;
+  if ((lat !== undefined || lng !== undefined) && !nearby) {
+    throw new HttpError(400, "Ubicación de la colonia inválida");
+  }
+  const radius = coordinate(radiusKm ?? 3, 0.1, MAX_RADIUS_KM);
+  if (radius === undefined) throw new HttpError(400, `El radio debe ser de 0.1 a ${MAX_RADIUS_KM} km`);
   const values = { ":since": since };
   const [{ Items }, myRequests] = await Promise.all([
-    colonia
+    colonia && !nearby
       ? db.send(
           new QueryCommand({
             TableName: tables.trips,
@@ -180,14 +212,22 @@ async function listTrips(event) {
     passengerRequests(me.userId),
   ]);
   const requestsByTrip = Object.fromEntries(myRequests.map((r) => [r.tripId, r]));
-  const open = Items.filter(
+  let open = Items.filter(
     (t) => t.status === "Disponible" && t.seatsLeft > 0 && t.driverId !== me.userId,
-  ).sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+  );
+  if (nearby) {
+    open = open
+      .filter((t) => t.lat !== undefined && t.lng !== undefined)
+      .map((t) => ({ ...t, distanceKm: Math.round(distanceKm(center.lat, center.lng, t.lat, t.lng) * 10) / 10 }))
+      .filter((t) => t.distanceKm <= radius);
+  }
+  open.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
   const profiles = await loadProfiles(open.map((t) => t.driverId));
   return open.map((t) => presentTrip(t, me.userId, requestsByTrip[t.tripId], profiles));
 }
 
-// POST /trips  { colonia, departureTime, seatsTotal, meetingPoint, routeDescription?, destination? }
+// POST /trips  { colonia, departureTime, seatsTotal, meetingPoint, routeDescription?, destination?, originLat?, originLng? }
+// originLat/originLng are the center of the departure colonia, used for "trips near me".
 async function createTrip(event) {
   const me = caller(event);
   const body = readBody(event);
@@ -202,10 +242,17 @@ async function createTrip(event) {
   if (!Number.isInteger(seats) || seats < 1 || seats > 8) {
     throw new HttpError(400, "Los asientos deben ser de 1 a 8");
   }
+  const lat = coordinate(body.originLat, YUCATAN.minLat, YUCATAN.maxLat);
+  const lng = coordinate(body.originLng, YUCATAN.minLng, YUCATAN.maxLng);
+  if ((body.originLat !== undefined || body.originLng !== undefined) && (lat === undefined || lng === undefined)) {
+    throw new HttpError(400, "Ubicación de la colonia inválida");
+  }
   const trip = {
     tripId: randomUUID(),
     driverId: me.userId,
     colonia: colonia.trim(),
+    lat,
+    lng,
     destination: optionalText(body.destination, "Destino", 80),
     routeDescription: optionalText(body.routeDescription, "Ruta", 140),
     departureTime: toIso(departureTime),

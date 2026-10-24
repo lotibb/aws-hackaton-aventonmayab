@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { PageHeader } from '@/components/app/page-header'
 import { ColoniaPicker } from '@/components/shared/colonia-picker'
+import { NEARBY_KM } from '@/lib/colonias'
 import { buttonVariants } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAvailableTrips, useCurrentUser, useMyTrips } from '@/hooks/use-data'
@@ -55,6 +56,9 @@ export function TripsScreen() {
         <TabsContent value="search" className="mt-4 flex flex-col gap-4">
           <div className="flex flex-col gap-3">
             <ColoniaPicker value={colonia} onChange={setColonia} allowAll placeholder="Todas las colonias" />
+            {colonia && (
+              <p className="-mt-1 text-xs text-muted-foreground">Viajes que salen a menos de {NEARBY_KM} km de {colonia}.</p>
+            )}
             <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" role="radiogroup" aria-label="Horario">
               {TIME_WINDOWS.map((w) => (
                 <button

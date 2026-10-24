@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrentUser } from '@/hooks/use-data'
-import { DEFAULT_DESTINATION, meetingPointsFor } from '@/lib/config'
+import { DEFAULT_DESTINATION, meetingPointsNear } from '@/lib/config'
 import { addDays, toIsoDate } from '@/lib/format'
 import { errorMessage, tripService } from '@/lib/services'
 import type { Colonia } from '@/lib/types'
@@ -20,7 +20,7 @@ export function PublishTripForm() {
   const user = useCurrentUser()
   const router = useRouter()
   const [colonia, setColonia] = useState<Colonia | undefined>(user.colonia)
-  const points = colonia ? meetingPointsFor(colonia) : []
+  const points = colonia ? meetingPointsNear(colonia) : []
   const [meetingPointId, setMeetingPointId] = useState<string>(points[0]?.id ?? '')
   const [route, setRoute] = useState('')
   const [date, setDate] = useState(toIsoDate(addDays(new Date(), 1)))
@@ -31,7 +31,7 @@ export function PublishTripForm() {
 
   function changeColonia(c: Colonia | undefined) {
     setColonia(c)
-    setMeetingPointId(c ? (meetingPointsFor(c)[0]?.id ?? '') : '')
+    setMeetingPointId(c ? (meetingPointsNear(c)[0]?.id ?? '') : '')
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -90,6 +90,11 @@ export function PublishTripForm() {
                 />
                 <span>
                   <span className="block text-sm font-medium">{p.name}</span>
+                  {p.distanceKm >= 0.5 && (
+                    <span className="block text-xs text-muted-foreground">
+                      {p.colonia} · a {p.distanceKm.toFixed(1)} km de tu colonia
+                    </span>
+                  )}
                   <span className="block text-xs leading-relaxed text-muted-foreground">{p.description}</span>
                 </span>
               </label>

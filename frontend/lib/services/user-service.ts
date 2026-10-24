@@ -29,7 +29,7 @@ function toUser(profile: ApiProfile): User {
     id: profile.userId,
     email: profile.email,
     fullName: profile.name ?? nameFromEmail(profile.email),
-    colonia: profile.colonia ?? COLONIAS[0],
+    colonia: profile.colonia ?? 'Centro',
     photoUrl: profile.photoUrl,
     activeMode: profile.activeMode ?? 'pasajero',
     verified: true,

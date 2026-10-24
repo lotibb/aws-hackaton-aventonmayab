@@ -1,3 +1,4 @@
+import { distanceKm, findColonia } from './colonias'
 import type { Colonia, MeetingPoint, ParkingZone, TrafficLight, ZoneId } from './types'
 
 export const UNIVERSITY_NAME = 'Anáhuac Mayab'
@@ -68,8 +69,20 @@ export const MEETING_POINTS: MeetingPoint[] = [
   { id: 'mp-centro-2', colonia: 'Centro', name: 'Parque de Santa Lucía', description: 'Esquina de la calle 60', kind: 'parque' },
 ]
 
-export function meetingPointsFor(colonia: Colonia): MeetingPoint[] {
-  return MEETING_POINTS.filter((m) => m.colonia === colonia)
+/**
+ * Public meeting points closest to a colonia, nearest first. Drivers pick from these
+ * (never a free-text address) until meeting points can be dropped on a map.
+ */
+export function meetingPointsNear(colonia: Colonia, limit = 3): Array<MeetingPoint & { distanceKm: number }> {
+  const origin = findColonia(colonia)
+  return MEETING_POINTS.map((m) => {
+    const at = findColonia(m.colonia)
+    const km = m.colonia === colonia ? 0 : origin && at ? distanceKm(origin, at) : Number.POSITIVE_INFINITY
+    return { ...m, distanceKm: km }
+  })
+    .filter((m) => Number.isFinite(m.distanceKm))
+    .sort((a, b) => a.distanceKm - b.distanceKm)
+    .slice(0, limit)
 }
 
 export function getMeetingPoint(id: string): MeetingPoint | undefined {

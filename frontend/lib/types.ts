@@ -1,17 +1,5 @@
-export const COLONIAS = [
-  'Montebello',
-  'Altabrisa',
-  'Cholul',
-  'Francisco de Montejo',
-  'Gran Santa Fe',
-  'García Ginerés',
-  'Temozón Norte',
-  'Las Américas',
-  'Caucel',
-  'Centro',
-] as const
-
-export type Colonia = (typeof COLONIAS)[number]
+export { COLONIAS, type Colonia } from './colonias'
+import type { Colonia } from './colonias'
 
 export type UserMode = 'conductor' | 'pasajero'
 
@@ -110,6 +98,8 @@ export interface TripView {
   time: string
   seatsTotal: number
   seatsAvailable: number
+  /** Distance from the searched colonia to the trip's colonia (only in nearby searches). */
+  distanceKm?: number
   status: TripStatus
   storedStatus: StoredTripStatus
   myRole: TripRole

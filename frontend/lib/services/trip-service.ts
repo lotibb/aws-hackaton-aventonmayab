@@ -1,8 +1,8 @@
-import { DEFAULT_DESTINATION, getMeetingPoint } from '../config'
+import { NEARBY_KM, findColonia } from '../colonias'
+import { DEFAULT_DESTINATION, getMeetingPoint, meetingPointsNear } from '../config'
 import { localDateOf, localTimeOf, timeToMinutes, toDepartureTime, toIsoDate } from '../format'
 import { notifyChange } from '../mock/db'
 import {
-  COLONIAS,
   type Colonia,
   type PublicProfile,
   type SeatRequestStatus,
@@ -56,6 +56,8 @@ interface ApiTrip {
   departureTime: string
   seatsTotal: number
   seatsLeft: number
+  /** Only in nearby searches: km from the searched colonia. */
+  distanceKm?: number
   /** Id of a public meeting point from config. */
   meetingPoint?: string
   status: 'Disponible' | 'En curso' | 'Finalizado' | 'Cancelado'
@@ -133,6 +135,7 @@ function toView(trip: ApiTrip, viewer: User): TripView {
     time: localTimeOf(trip.departureTime),
     seatsTotal: trip.seatsTotal,
     seatsAvailable: trip.seatsLeft,
+    distanceKm: trip.distanceKm,
     status: deriveStatus(stored, role, requests, myRequest),
     storedStatus: stored,
     myRole: role,
@@ -171,7 +174,15 @@ export const tripService = {
     const startOfToday = new Date()
     startOfToday.setHours(0, 0, 0, 0)
     const params = new URLSearchParams({ from: startOfToday.toISOString() })
-    if (filters.colonia) params.set('colonia', filters.colonia)
+    // A colonia filter means "trips leaving near it", not only from that exact colonia.
+    const center = findColonia(filters.colonia)
+    if (center) {
+      params.set('lat', String(center.lat))
+      params.set('lng', String(center.lng))
+      params.set('radiusKm', String(NEARBY_KM))
+    } else if (filters.colonia) {
+      params.set('colonia', filters.colonia)
+    }
     const trips = await api<ApiTrip[]>(`/trips?${params}`)
     return trips
       .map((t) => toView(t, user))
@@ -208,10 +219,11 @@ export const tripService = {
   },
 
   async publishTrip(user: User, input: PublishTripInput): Promise<TripView> {
-    if (!COLONIAS.includes(input.originColonia)) throw new ServiceError('INVALID_INPUT', 'Selecciona una colonia de origen.')
+    const origin = findColonia(input.originColonia)
+    if (!origin) throw new ServiceError('INVALID_INPUT', 'Selecciona una colonia de origen.')
     const meetingPoint = getMeetingPoint(input.meetingPointId)
-    // Only points from the configured public list are accepted; free-text addresses are rejected.
-    if (!meetingPoint || meetingPoint.colonia !== input.originColonia) {
+    // Only the public points offered for this colonia are accepted; free-text addresses are rejected.
+    if (!meetingPoint || !meetingPointsNear(input.originColonia).some((p) => p.id === meetingPoint.id)) {
       throw new ServiceError('INVALID_INPUT', 'Elige un punto de encuentro público de la lista.')
     }
     if (!Number.isInteger(input.seatsTotal) || input.seatsTotal < 1 || input.seatsTotal > 4) {
@@ -234,6 +246,9 @@ export const tripService = {
           departureTime: toDepartureTime(input.date, input.time),
           seatsTotal: input.seatsTotal,
           meetingPoint: meetingPoint.id,
+          // The colonia's center, used to show the trip to passengers nearby.
+          originLat: origin.lat,
+          originLng: origin.lng,
         },
       }),
     )

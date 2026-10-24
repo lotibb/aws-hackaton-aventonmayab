@@ -125,6 +125,17 @@ check("driver /me/trips (with requests)", s == 200 and [t["tripId"] for t in b["
 s, b = call("trips", "GET /me/trips", accepted)
 check("passenger /me/trips", s == 200 and len(b["asPassenger"]) == 1 and b["asPassenger"][0]["myRequest"]["status"] == "accepted", b)
 
+print("== Nearby search (colonia centers)")
+base = {"colonia": colonia, "departureTime": tomorrow, "seatsTotal": 2, "meetingPoint": "x"}
+_, near = call("trips", "POST /trips", D, body={**base, "originLat": 21.038, "originLng": -89.6})
+_, far = call("trips", "POST /trips", D, body={**base, "originLat": 20.93, "originLng": -89.6})
+s, lst = call("trips", "GET /trips", P[5], qs={"lat": "21.03", "lng": "-89.6", "radiusKm": "3"})
+found = {t["tripId"]: t for t in lst} if s == 200 else {}
+check("nearby search returns the close trip with its distance", near["tripId"] in found and 0.5 < found[near["tripId"]]["distanceKm"] < 1.5, lst)
+check("nearby search leaves out the trip 11 km away", far["tripId"] not in found, lst)
+check("bad coordinates -> 400", call("trips", "GET /trips", P[5], qs={"lat": "99", "lng": "-89.6"})[0] == 400)
+check("coordinates outside Yucatán rejected on create", call("trips", "POST /trips", D, body={**base, "originLat": 40.4, "originLng": -3.7})[0] == 400)
+
 print("== Parking")
 zone = f"TEST-{RUN}"
 T["parking-zones"].put_item(Item={"zoneId": zone, "name": "Zona de prueba", "capacity": 50, "currentCount": 0})

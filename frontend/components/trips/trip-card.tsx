@@ -20,6 +20,7 @@ export function TripCard({ trip }: { trip: TripView }) {
           <p className="flex items-center gap-1 truncate text-sm text-muted-foreground">
             <MapPin className="size-3.5 shrink-0" aria-hidden="true" />
             {trip.originColonia}
+            {trip.distanceKm !== undefined && trip.distanceKm >= 0.5 && ` · a ${trip.distanceKm.toFixed(1)} km`}
           </p>
         </div>
         <TripStatusBadge status={trip.status} />

@@ -1,4 +1,5 @@
 import { PARKING_ZONES, getZone, trafficLightFor } from '../config'
+import { PARKING_DEMO, withDemoOccupancy } from '../demo-parking'
 import { WEEKDAYS, minutesToTime, timeToMinutes } from '../format'
 import { notifyChange } from '../mock/db'
 import { buildForecast, projectPercentage, type AggregatedPresence } from '../projections'
@@ -46,7 +47,8 @@ export interface PersonalInsight {
 
 export const parkingService = {
   async getZonesOccupancy(_user: User): Promise<ZoneOccupancy[]> {
-    return toOccupancies(await fetchZones())
+    const zones = toOccupancies(await fetchZones())
+    return PARKING_DEMO ? zones.map((zone) => withDemoOccupancy(zone)) : zones
   },
 
   async getMyActiveEntry(user: User): Promise<ParkingEvent | null> {

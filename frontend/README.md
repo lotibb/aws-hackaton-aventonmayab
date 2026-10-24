@@ -57,6 +57,8 @@ conservar el checkout completo del repositorio al compilar el frontend.
 
 Comprobación local del servicio y adaptadores: `node scripts/check-parking.cjs`.
 
+**Modo demostración:** con `NEXT_PUBLIC_PARKING_DEMO=true` (así está en `.env.example`, que usa el despliegue) cada zona muestra autos simulados más las entradas reales registradas, con la etiqueta "Simulado". Para ver solo los conteos reales, ponlo en `false` y vuelve a publicar.
+
 `api()` llama a la API con el token del alumno y lanza `Error` con el mensaje del backend, ya en español.
 
 ```ts

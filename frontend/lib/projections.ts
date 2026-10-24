@@ -3,8 +3,9 @@ import { minutesToTime, timeToMinutes } from './format'
 import type { ForecastPoint, Schedule, ZoneId } from './types'
 
 /**
- * Invented historical occupancy patterns (percentage of capacity), labeled "Simulado" in the UI.
+ * Invented historical occupancy patterns (percentage of capacity), labeled "Estimado" in the UI.
  * Weekdays: busiest 7:00–9:30, smaller peak ~11:00, quieter after 13:00, evening bump for evening programs.
+ * Saturdays: weekend and graduate programs in the morning. Sundays: library and events.
  */
 const WEEKDAY_PATTERN: Array<[number, number]> = [
   [360, 5], [390, 12], [420, 34], [450, 68], [480, 88], [510, 92], [540, 92], [570, 86],
@@ -12,11 +13,14 @@ const WEEKDAY_PATTERN: Array<[number, number]> = [
   [960, 30], [1020, 30], [1080, 38], [1110, 42], [1170, 38], [1230, 24], [1260, 12],
 ]
 const SATURDAY_PATTERN: Array<[number, number]> = [
-  [360, 2], [450, 8], [510, 18], [600, 24], [720, 18], [840, 8], [960, 4], [1260, 1],
+  [360, 4], [420, 18], [450, 34], [480, 48], [540, 58], [600, 62], [660, 56], [720, 46],
+  [780, 32], [840, 20], [960, 10], [1080, 6], [1260, 2],
 ]
 const SUNDAY_PATTERN: Array<[number, number]> = [
-  [360, 1], [600, 4], [780, 3], [1260, 1],
+  [360, 1], [540, 6], [600, 12], [720, 16], [840, 11], [960, 6], [1260, 1],
 ]
+/** Each weekday is a little different: Tuesday and Thursday are the busiest, Friday the quietest. */
+const WEEKDAY_FACTOR: Record<number, number> = { 1: 1, 2: 1.05, 3: 0.97, 4: 1.03, 5: 0.86 }
 
 function interpolate(pattern: Array<[number, number]>, minutes: number): number {
   if (minutes <= pattern[0][0]) return pattern[0][1]
@@ -31,8 +35,7 @@ function interpolate(pattern: Array<[number, number]>, minutes: number): number 
 export function historicalPercentage(weekday: number, minutes: number): number {
   if (weekday === 0) return interpolate(SUNDAY_PATTERN, minutes)
   if (weekday === 6) return interpolate(SATURDAY_PATTERN, minutes)
-  const friday = weekday === 5 ? 0.88 : 1
-  return interpolate(WEEKDAY_PATTERN, minutes) * friday
+  return interpolate(WEEKDAY_PATTERN, minutes) * WEEKDAY_FACTOR[weekday]
 }
 
 /** Arrivals ~20 min before class starts; departures ~10 min after it ends. */

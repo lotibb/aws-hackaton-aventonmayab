@@ -51,7 +51,7 @@ el servidor local del frontend no reemplaza las Lambdas desplegadas.
 
 La fuente **Registrado** representa entradas y salidas de alumnos guardadas en el servidor;
 no afirma que haya sensores físicos conectados. El simulador del perfil es independiente.
-Los pronósticos siguen siendo estimados y usan patrones de referencia y horarios propios.
+Los pronósticos siguen siendo estimados y usan patrones de referencia y horarios agregados por la API.
 El catálogo compartido está en `backend/src/lib/parking-catalog.json`, por lo que hay que
 conservar el checkout completo del repositorio al compilar el frontend.
 

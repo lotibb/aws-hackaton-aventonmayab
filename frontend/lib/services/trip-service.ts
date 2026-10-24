@@ -1,8 +1,7 @@
-import { DEFAULT_DESTINATION, getMeetingPoint } from '../config'
+import { DEFAULT_DESTINATION } from '../config'
 import { localDateOf, localTimeOf, timeToMinutes, toDepartureTime, toIsoDate } from '../format'
 import { notifyChange } from '../mock/db'
 import {
-  COLONIAS,
   type Colonia,
   type PublicProfile,
   type SeatRequestStatus,
@@ -15,19 +14,20 @@ import { api } from './api'
 import { ServiceError } from './errors'
 
 export interface TripFilters {
-  colonia?: Colonia
+  origin?: string
   /** Minutes since midnight, inclusive. */
   fromMinutes?: number
   toMinutes?: number
 }
 
 export interface PublishTripInput {
-  originColonia: Colonia
+  originColonia: string
+  destination: string
   routeDescription: string
   date: string
   time: string
   seatsTotal: number
-  meetingPointId: string
+  meetingPoint?: string
 }
 
 // Shapes returned by the API (docs/api.md). Visibility rules are applied by the Lambda:
@@ -51,13 +51,13 @@ interface ApiTrip {
   tripId: string
   driverId: string
   driver: ApiProfile | null
-  colonia: Colonia
+  colonia: string
   destination?: string
   routeDescription?: string
   departureTime: string
   seatsTotal: number
   seatsLeft: number
-  /** Id of a public meeting point from config. */
+  /** Public meeting point, visible to the driver and accepted passengers. */
   meetingPoint?: string
   status: 'Disponible' | 'En curso' | 'Finalizado' | 'Cancelado'
   myRequest?: ApiRequest | null
@@ -100,15 +100,16 @@ function deriveStatus(
   myRequest?: ApiRequest,
 ): TripStatus {
   if (stored === 'cancelado') return 'cancelado'
+  // Keep trips from the old start/finish flow readable without exposing that extra step.
+  if (stored === 'en_curso') return 'aceptado'
   if (role === 'conductor') {
-    if (stored !== 'publicado') return stored
+    if (stored === 'finalizado') return 'finalizado'
     if (requests.some((r) => r.status === 'accepted')) return 'aceptado'
     if (requests.some((r) => r.status === 'pending')) return 'solicitud_pendiente'
     return 'publicado'
   }
   if (role === 'pasajero' && myRequest) {
     if (myRequest.status === 'accepted') {
-      if (stored === 'en_curso') return 'en_curso'
       if (stored === 'finalizado') return 'finalizado'
       return 'aceptado'
     }
@@ -141,9 +142,8 @@ function toView(trip: ApiTrip, viewer: User): TripView {
     myRequest: myRequest ? { id: requestIdOf(myRequest), status: myRequest.status } : undefined,
   }
 
-  const meetingPoint = trip.meetingPoint ? getMeetingPoint(trip.meetingPoint) : undefined
-  if (meetingPoint && (stored === 'publicado' || stored === 'en_curso')) {
-    view.meetingPoint = meetingPoint
+  if (trip.meetingPoint && (stored === 'publicado' || stored === 'en_curso')) {
+    view.meetingPoint = trip.meetingPoint
     view.pickupTime = view.time
   }
 
@@ -173,11 +173,12 @@ export const tripService = {
     const startOfToday = new Date()
     startOfToday.setHours(0, 0, 0, 0)
     const params = new URLSearchParams({ from: startOfToday.toISOString() })
-    if (filters.colonia) params.set('colonia', filters.colonia)
     const trips = await api<ApiTrip[]>(`/trips?${params}`)
+    const origin = filters.origin?.trim().toLocaleLowerCase()
     return trips
       .map((t) => toView(t, user))
       .filter((t) => {
+        if (origin && !t.originColonia.toLocaleLowerCase().includes(origin)) return false
         const m = timeToMinutes(t.time)
         if (filters.fromMinutes !== undefined && m < filters.fromMinutes) return false
         if (filters.toMinutes !== undefined && m > filters.toMinutes) return false
@@ -193,29 +194,28 @@ export const tripService = {
 
   async getNextTrip(user: User): Promise<TripView | null> {
     const mine = await this.listMine(user)
-    const active = mine.filter((t) => ['publicado', 'solicitud_pendiente', 'aceptado', 'en_curso'].includes(t.status))
+    const active = mine.filter((t) => ['publicado', 'solicitud_pendiente', 'aceptado'].includes(t.status))
     const relevant = active.filter((t) => t.myRole === 'conductor' || t.status !== 'publicado')
-    const ongoing = relevant.find((t) => t.status === 'en_curso')
-    return ongoing ?? relevant[0] ?? null
+    return relevant[0] ?? null
   },
 
   async getTrip(user: User, tripId: string): Promise<TripView | null> {
     try {
       return toView(await api<ApiTrip>(`/trips/${encodeURIComponent(tripId)}`), user)
     } catch (error) {
-      // Missing trips, and started trips the viewer never joined, both come back as 404.
+      // Missing trips, and closed trips the viewer never joined, both come back as 404.
       if (error instanceof ServiceError && error.code === 'NOT_FOUND') return null
       throw error
     }
   },
 
   async publishTrip(user: User, input: PublishTripInput): Promise<TripView> {
-    if (!COLONIAS.includes(input.originColonia)) throw new ServiceError('INVALID_INPUT', 'Selecciona una colonia de origen.')
-    const meetingPoint = getMeetingPoint(input.meetingPointId)
-    // Only points from the configured public list are accepted; free-text addresses are rejected.
-    if (!meetingPoint || meetingPoint.colonia !== input.originColonia) {
-      throw new ServiceError('INVALID_INPUT', 'Elige un punto de encuentro público de la lista.')
-    }
+    const origin = input.originColonia.trim()
+    if (origin.length < 2 || origin.length > 80) throw new ServiceError('INVALID_INPUT', 'Escribe un lugar de salida (máximo 80 caracteres).')
+    const destination = input.destination.trim()
+    if (destination.length < 2 || destination.length > 80) throw new ServiceError('INVALID_INPUT', 'Escribe un destino (máximo 80 caracteres).')
+    const meetingPoint = input.meetingPoint?.trim()
+    if (meetingPoint && meetingPoint.length > 120) throw new ServiceError('INVALID_INPUT', 'El punto de encuentro no debe pasar de 120 caracteres.')
     if (!Number.isInteger(input.seatsTotal) || input.seatsTotal < 1 || input.seatsTotal > 4) {
       throw new ServiceError('INVALID_INPUT', 'Puedes ofrecer de 1 a 4 lugares.')
     }
@@ -224,18 +224,18 @@ export const tripService = {
     }
     if (!/^\d{2}:\d{2}$/.test(input.time)) throw new ServiceError('INVALID_INPUT', 'Elige una hora válida.')
     const route = input.routeDescription.trim()
-    if (route.length < 5) throw new ServiceError('INVALID_INPUT', 'Describe brevemente tu ruta (por ejemplo, avenidas principales).')
+    if (route.length > 140) throw new ServiceError('INVALID_INPUT', 'La ruta no debe pasar de 140 caracteres.')
 
     const trip = await mutate(
       api<ApiTrip>('/trips', {
         method: 'POST',
         body: {
-          colonia: input.originColonia,
-          destination: DEFAULT_DESTINATION,
-          routeDescription: route.slice(0, 140),
+          colonia: origin,
+          destination,
+          routeDescription: route || undefined,
           departureTime: toDepartureTime(input.date, input.time),
           seatsTotal: input.seatsTotal,
-          meetingPoint: meetingPoint.id,
+          meetingPoint: meetingPoint || undefined,
         },
       }),
     )
@@ -263,11 +263,20 @@ export const tripService = {
     )
   },
 
-  async startTrip(user: User, tripId: string): Promise<void> {
-    await mutate(api(`/trips/${encodeURIComponent(tripId)}/status`, { method: 'POST', body: { status: 'En curso' } }))
+  async setMeetingPoint(user: User, tripId: string, meetingPoint: string): Promise<void> {
+    const point = meetingPoint.trim()
+    if (point.length < 3 || point.length > 120) {
+      throw new ServiceError('INVALID_INPUT', 'Escribe un punto público de encuentro (de 3 a 120 caracteres).')
+    }
+    await mutate(
+      api(`/trips/${encodeURIComponent(tripId)}/meeting-point`, {
+        method: 'PUT',
+        body: { meetingPoint: point },
+      }),
+    )
   },
 
-  async finishTrip(user: User, tripId: string): Promise<void> {
+  async completeTrip(user: User, tripId: string): Promise<void> {
     await mutate(api(`/trips/${encodeURIComponent(tripId)}/status`, { method: 'POST', body: { status: 'Finalizado' } }))
   },
 

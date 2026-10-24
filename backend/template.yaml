@@ -13,10 +13,6 @@ Parameters:
     Type: CommaDelimitedList
     Default: "*"
     Description: Frontend origins allowed by CORS, e.g. https://my-app.vercel.app,http://localhost:3000
-  ScheduleModelId:
-    Type: String
-    Default: anthropic.claude-opus-5-5
-    Description: Claude model in Amazon Bedrock that reads uploaded timetables
 
 Globals:
   Function:
@@ -67,6 +63,16 @@ Resources:
 
   TripsFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Format: cjs
+        Platform: node
+        Target: node22
+        EntryPoints:
+          - trips.mjs
+        External:
+          - "@aws-sdk/*"
     Properties:
       FunctionName: aventon-trips
       Handler: trips.handler
@@ -79,6 +85,7 @@ Resources:
         CancelRequest: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: DELETE, Path: "/trips/{tripId}/requests" } }
         AcceptRequest: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/trips/{tripId}/requests/{passengerId}/accept" } }
         RejectRequest: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/trips/{tripId}/requests/{passengerId}/reject" } }
+        SetMeetingPoint: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: PUT, Path: "/trips/{tripId}/meeting-point" } }
         SetTripStatus: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/trips/{tripId}/status" } }
       Policies:
         - DynamoDBCrudPolicy:
@@ -90,6 +97,16 @@ Resources:
 
   ParkingFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Format: cjs
+        Platform: node
+        Target: node22
+        EntryPoints:
+          - parking.mjs
+        External:
+          - "@aws-sdk/*"
     Properties:
       FunctionName: aventon-parking
       Handler: parking.handler
@@ -98,6 +115,10 @@ Resources:
         MySession: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: GET, Path: /parking/session } }
         Entry: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: /parking/entry } }
         Exit: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: /parking/exit } }
+        Presence: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: GET, Path: /parking/presence } }
+        SensorEvent: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: /parking/sensor-events } }
+        SensorOnline: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/parking/zones/{zoneId}/sensor" } }
+        ResetDemo: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: /parking/demo/reset } }
       Policies:
         - DynamoDBReadPolicy:
             TableName: aventon-users
@@ -109,9 +130,22 @@ Resources:
             TableName: aventon-parking-zones
         - DynamoDBCrudPolicy:
             TableName: aventon-parking-sessions
+        # Only to count, per time slot, how many students have class (forecasts).
+        - DynamoDBReadPolicy:
+            TableName: aventon-schedules
 
   ProfileFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Format: cjs
+        Platform: node
+        Target: node22
+        EntryPoints:
+          - profile.mjs
+        External:
+          - "@aws-sdk/*"
     Properties:
       FunctionName: aventon-profile
       Handler: profile.handler
@@ -136,33 +170,13 @@ Resources:
         - DynamoDBCrudPolicy:
             TableName: aventon-seat-requests
         - DynamoDBCrudPolicy:
-            TableName: aventon-parking-sessions
-        - DynamoDBCrudPolicy:
             TableName: aventon-parking-zones
+        - DynamoDBCrudPolicy:
+            TableName: aventon-parking-sessions
         - Statement:
             - Effect: Allow
               Action: cognito-idp:AdminDeleteUser
               Resource: !Sub arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPoolId}
-
-  # Reads a timetable photo or PDF with Claude in Amazon Bedrock. Nothing is stored.
-  ScheduleImportFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: aventon-schedule-import
-      Handler: schedule-import.handler
-      # API Gateway answers 503 after 30 s, so Claude gets 25 s.
-      Timeout: 29
-      MemorySize: 512
-      Environment:
-        Variables:
-          MODEL_ID: !Ref ScheduleModelId
-      Events:
-        ImportSchedule: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: /me/schedule/import } }
-      Policies:
-        - Statement:
-            - Effect: Allow
-              Action: bedrock-mantle:CreateInference
-              Resource: "*"
 
 Outputs:
   ApiUrl:
@@ -174,5 +188,3 @@ Outputs:
     Value: !GetAtt ParkingFunction.Arn
   ProfileFunctionArn:
     Value: !GetAtt ProfileFunction.Arn
-  ScheduleImportFunctionArn:
-    Value: !GetAtt ScheduleImportFunction.Arn

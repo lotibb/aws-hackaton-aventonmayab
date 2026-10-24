@@ -16,6 +16,9 @@ export interface ApiParkingZone {
   sensorOnline: boolean
   lastReadingAt?: string
   currentCount?: number
+  sensorCount?: number
+  manualCount?: number
+  recentEvents?: Array<{ id: string; sensorType: 'entrada' | 'salida'; timestamp: string; counterId: string }>
 }
 
 export interface ApiParkingSession {

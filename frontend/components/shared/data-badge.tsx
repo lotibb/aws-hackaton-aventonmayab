@@ -22,7 +22,7 @@ const META: Record<DataSource, { label: string; description: string; icon: typeo
   estimado: {
     label: 'Estimado',
     description:
-      'Proyección basada en patrones de referencia y tus horarios guardados. No es una lectura de la ocupación actual ni modifica los registros del servidor.',
+      'Proyección basada en patrones de referencia y horarios agregados por la API. No es una lectura de la ocupación actual ni modifica los registros del servidor.',
     icon: TrendingUp,
     className: 'bg-warning/20 text-warning-foreground dark:text-warning',
   },

@@ -15,7 +15,8 @@ export function presentZone(zone, now = Date.now()) {
     available: occupied === null || capacity === null ? null : Math.max(0, capacity - occupied),
     occupancyPercentage: occupied === null || capacity === null ? null : Math.round(occupied / capacity * 100),
     source: "registrado",
-    sensorOnline: Boolean(zone.lastReadingAt) && now - Date.parse(zone.lastReadingAt) < 10 * 60 * 1000,
+    sensorOnline: typeof zone.sensorOnline === "boolean" ? zone.sensorOnline :
+      Boolean(zone.lastReadingAt) && now - Date.parse(zone.lastReadingAt) < 10 * 60 * 1000,
   };
 }
 

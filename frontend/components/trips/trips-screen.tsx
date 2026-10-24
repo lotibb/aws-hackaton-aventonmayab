@@ -2,14 +2,15 @@
 
 import { Plus, SearchX } from 'lucide-react'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { PageHeader } from '@/components/app/page-header'
-import { ColoniaPicker } from '@/components/shared/colonia-picker'
+import { LocationPicker } from '@/components/shared/location-picker'
 import { buttonVariants } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAvailableTrips, useCurrentUser, useMyTrips } from '@/hooks/use-data'
+import { TRIP_LOCATION_SUGGESTIONS } from '@/lib/config'
 import type { TripFilters } from '@/lib/services'
-import type { Colonia, TripView } from '@/lib/types'
+import type { TripView } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { TripCard } from './trip-card'
 
@@ -22,10 +23,15 @@ const TIME_WINDOWS: Array<{ id: string; label: string; from?: number; to?: numbe
 
 export function TripsScreen() {
   const user = useCurrentUser()
-  const [colonia, setColonia] = useState<Colonia | undefined>()
+  const [originText, setOriginText] = useState('')
+  const [origin, setOrigin] = useState('')
   const [windowId, setWindowId] = useState('all')
+  useEffect(() => {
+    const timer = setTimeout(() => setOrigin(originText), 250)
+    return () => clearTimeout(timer)
+  }, [originText])
   const tw = TIME_WINDOWS.find((w) => w.id === windowId) ?? TIME_WINDOWS[0]
-  const filters: TripFilters = { colonia, fromMinutes: tw.from, toMinutes: tw.to }
+  const filters: TripFilters = { origin, fromMinutes: tw.from, toMinutes: tw.to }
   const { data: available, isLoading: loadingAvailable } = useAvailableTrips(user, filters)
   const { data: mine, isLoading: loadingMine } = useMyTrips(user)
 
@@ -54,7 +60,15 @@ export function TripsScreen() {
 
         <TabsContent value="search" className="mt-4 flex flex-col gap-4">
           <div className="flex flex-col gap-3">
-            <ColoniaPicker value={colonia} onChange={setColonia} allowAll placeholder="Todas las colonias" />
+            <label htmlFor="trip-origin-search" className="text-sm font-medium">Buscar por lugar de salida</label>
+            <LocationPicker
+              id="trip-origin-search"
+              value={originText}
+              onChange={(location) => setOriginText(location ?? '')}
+              options={TRIP_LOCATION_SUGGESTIONS}
+              allowAll
+              placeholder="Ej. Anáhuac, Cholul o Montebello"
+            />
             <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" role="radiogroup" aria-label="Horario">
               {TIME_WINDOWS.map((w) => (
                 <button
@@ -73,7 +87,7 @@ export function TripsScreen() {
               ))}
             </div>
           </div>
-          <TripList trips={available} loading={loadingAvailable} empty="No hay viajes con estos filtros. Prueba otra colonia u horario." />
+          <TripList trips={available} loading={loadingAvailable} empty="No hay viajes con estos filtros. Prueba otro lugar de salida u horario." />
         </TabsContent>
 
         <TabsContent value="mine" className="mt-4">

@@ -106,6 +106,15 @@ test('DynamoDB transactions: capacity, parallel requests, session privacy, exit 
     const rows = (await call('GET /parking/zones', 'a')).data;
     assert.equal(rows.filter((row) => /^P\d+$/.test(row.zoneId)).length, 10);
     assert.equal(rows.find((row) => row.zoneId === 'P10').available, 25);
+    assert.equal((await call('POST /parking/demo/reset', 'a')).status, 200);
+    const afterDemo = await get(tables.parkingZones, { zoneId: 'P9' });
+    assert.equal(afterDemo.registeredOccupied, 3, 'Demo reset cannot erase real occupancy');
+    assert.equal(afterDemo.capacity, 7, 'Demo reset cannot replace configured capacity');
+    assert.equal(afterDemo.capacityEstimated, false);
+    const offline = await handler({ routeKey: 'POST /parking/zones/{zoneId}/sensor', pathParameters: { zoneId: 'P10' }, body: JSON.stringify({ online: false }), requestContext: { authorizer: { jwt: { claims: { sub: 'a' } } } } });
+    assert.equal(JSON.parse(offline.body).sensorOnline, false);
+    assert.equal((await call('POST /parking/sensor-events', 'a', { zoneId: 'P10', sensorType: 'entrada' })).status, 409);
+    assert.equal((await get(tables.parkingZones, { zoneId: 'P10' })).registeredOccupied, 0);
     db.destroy();
   } finally {
     for (const TableName of created) await client.send(new DeleteTableCommand({ TableName }));

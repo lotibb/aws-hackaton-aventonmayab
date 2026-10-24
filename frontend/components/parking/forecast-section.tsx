@@ -74,8 +74,8 @@ export function ForecastSection({ user, zoneId }: { user: User; zoneId: ZoneId }
       )}
 
       <p className="text-xs leading-relaxed text-muted-foreground">
-        Proyección estimada con tus horarios guardados (llegadas 20 min antes de cada clase) y patrones históricos de referencia.
-        Tus horarios no se comparten. Esta proyección no modifica el conteo real de entradas y salidas.
+        Proyección estimada con horarios agregados de la API (llegadas 20 min antes de cada clase) y patrones históricos de referencia.
+        No se comparten horarios individuales. Esta proyección no modifica el conteo real de entradas y salidas.
       </p>
 
       {rec && (

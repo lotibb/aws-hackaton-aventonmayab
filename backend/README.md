@@ -22,7 +22,7 @@ aws cloudformation deploy --region us-east-1 --template-file infra/cognito.yaml 
 aws cloudformation deploy --region us-east-1 --template-file infra/dynamodb.yaml \
   --stack-name aventon-mayab-data
 
-sam build    # instala las dependencias de src/package.json
+sam build    # empaqueta cada Lambda en un solo archivo con esbuild
 sam deploy   # usa samconfig.toml
 
 aws cloudformation deploy --region us-east-1 --template-file infra/frontend.yaml \
@@ -55,7 +55,7 @@ Todas son on-demand: se paga por uso, centavos en una demo.
 | `aventon-users` | `userId` | | nombre, email, celular, colonia, foto |
 | `aventon-trips` | `tripId` | `byColonia` (colonia + departureTime), `byDriver` | viajes |
 | `aventon-seat-requests` | `tripId` + `passengerId` | `byPassenger` | solicitudes de asiento |
-| `aventon-parking-zones` | `zoneId` | | capacidad, conteo, última lectura del sensor |
+| `aventon-parking-zones` | `zoneId` | | capacidad, conteo de sensores, estimado manual, últimas lecturas |
 | `aventon-parking-sessions` | `userId` | | entrada activa del alumno |
 | `aventon-schedules` | `userId` + `slotId` | | horario de clases (privado) |
 
@@ -74,9 +74,8 @@ URL: `https://zdm8p9cfd7.execute-api.us-east-1.amazonaws.com` (output `ApiUrl`).
 | Función | Archivo | Rutas |
 | --- | --- | --- |
 | `aventon-trips` | `trips.mjs` | viajes y solicitudes de asiento |
-| `aventon-parking` | `parking.mjs` | zonas, entrada y salida |
+| `aventon-parking` | `parking.mjs` | zonas, entrada y salida, sensores (simulador) y conteos para las proyecciones |
 | `aventon-profile` | `profile.mjs` | perfil, horario y borrar cuenta |
-| `aventon-schedule-import` | `schedule-import.mjs` | lee un horario en foto o PDF con Claude |
 
 `src/lib/` tiene el código compartido: el router, el usuario del token y el cliente de DynamoDB. Las rutas y reglas están en [`docs/api.md`](../docs/api.md).
 
@@ -114,8 +113,8 @@ La aplicación muestra la fuente **Registrado**, consulta cada cinco segundos y 
 después de registrar entrada/salida o de recibir un conflicto. Si no está desplegado el
 backend nuevo o falta alguna zona, muestra un error de configuración y no datos ficticios.
 El conteo incluye solo vehículos registrados por alumnos. Los pronósticos conservan la
-fórmula anterior, usan los horarios propios guardados y están identificados como estimados.
-El simulador de sensores sigue disponible, aislado de la API y sin alterar registros reales.
+fórmula anterior y los horarios agregados de la API, identificados como estimados.
+El simulador de sensores sigue disponible en la API, aislado del contador registrado y de las sesiones reales.
 
 Verificar contra AWS con `python tests/integration_test.py`; este script invoca las
 Lambdas y usa datos temporales. Para comprobar además el authorizer y CORS, iniciar
@@ -144,16 +143,11 @@ idempotente del catálogo. Estas pruebas locales no acreditan permisos IAM, Cogn
 el despliegue AWS. Desde `frontend/`, `node scripts/check-parking.cjs` verifica el servicio
 con respuestas HTTP controladas y sin consultar AWS.
 
-### Importar horario (Claude en Amazon Bedrock)
-
-`aventon-schedule-import` manda la foto o el PDF a Claude en [Amazon Bedrock](https://platform.claude.com/docs/en/build-with-claude/claude-in-amazon-bedrock) y devuelve las clases que encontró; no guarda nada, el alumno las revisa antes de agregarlas.
-
-- **Modelo:** parámetro `ScheduleModelId`, por defecto `anthropic.claude-opus-5-5`. Antes del primer uso, habilita el modelo en Console → Amazon Bedrock → Model access (us-east-1).
-- **Permiso:** el rol de la Lambda solo tiene `bedrock-mantle:CreateInference`.
-- **Límites:** archivos de hasta 4 MB. Claude tiene 25 s para responder, porque API Gateway corta a los 30 s.
-- **Dependencia:** usa `@anthropic-ai/bedrock-sdk` (en `src/package.json`), por eso hay que correr `sam build` antes de `sam deploy`.
+Build: `sam build` empaqueta cada Lambda con esbuild en un solo archivo (`Metadata: BuildMethod: esbuild` en `template.yaml`). Usan el AWS SDK que trae el runtime, así que pesan unos KB y ninguna lleva `node_modules`; `sam build` cabe en CloudShell sin usar `/tmp`. Siempre corre `sam build` antes de `sam deploy`.
 
 ## Pruebas
+
+**En tu máquina, sin desplegar:** [`local/README.md`](local/README.md) corre la API completa contra DynamoDB Local.
 
 `tests/integration_test.py` llama a las Lambdas desplegadas con los mismos eventos que manda API Gateway. Prueba todas las reglas, incluyendo 5 aceptaciones simultáneas por el último lugar y 5 entradas simultáneas al estacionamiento. Crea datos de prueba y los borra al final.
 

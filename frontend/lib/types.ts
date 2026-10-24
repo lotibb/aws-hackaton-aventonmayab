@@ -40,42 +40,28 @@ export interface PublicProfile {
   phone?: string
 }
 
-/**
- * Viewer-facing lifecycle:
- * Publicado → Solicitud pendiente → Aceptado → En curso → Finalizado (or Cancelado).
- */
+/** Viewer-facing lifecycle: Publicado → Solicitud pendiente → Aceptado → Finalizado (or Cancelado). */
 export type TripStatus =
   | 'publicado'
   | 'solicitud_pendiente'
   | 'aceptado'
-  | 'en_curso'
   | 'finalizado'
   | 'cancelado'
 
 /** The status actually persisted on the trip record. */
-export type StoredTripStatus = Extract<TripStatus, 'publicado' | 'en_curso' | 'finalizado' | 'cancelado'>
-
-export type MeetingPointKind = 'plaza' | 'parque' | 'referencia'
-
-export interface MeetingPoint {
-  id: string
-  colonia: Colonia
-  name: string
-  description: string
-  kind: MeetingPointKind
-}
+export type StoredTripStatus = 'publicado' | 'en_curso' | 'finalizado' | 'cancelado'
 
 export interface Trip {
   id: string
   driverId: string
-  originColonia: Colonia
+  originColonia: string
   destination: string
   routeDescription: string
   /** ISO 8601 in UTC, e.g. "2026-10-26T13:30:00.000Z". */
   departureTime: string
   seatsTotal: number
   seatsAvailable: number
-  meetingPointId: string
+  meetingPoint?: string
   status: StoredTripStatus
   createdAt: string
 }
@@ -104,7 +90,7 @@ export interface TripRequestView {
 export interface TripView {
   id: string
   driver: PublicProfile
-  originColonia: Colonia
+  originColonia: string
   destination: string
   routeDescription: string
   departureTime: string
@@ -118,8 +104,8 @@ export interface TripView {
   storedStatus: StoredTripStatus
   myRole: TripRole
   myRequest?: { id: string; status: SeatRequestStatus }
-  /** Only present for participants while the trip is active (Aceptado / En curso). */
-  meetingPoint?: MeetingPoint
+  /** Only present for the driver or an accepted passenger while the trip is active. */
+  meetingPoint?: string
   pickupTime?: string
   /** Only present for the driver. */
   requests?: TripRequestView[]
@@ -174,6 +160,7 @@ export interface Schedule {
   end: string
   building: string
   subject?: string
+  room?: string
 }
 
 export type DataSource = 'verificado' | 'estimado' | 'simulado' | 'registrado'

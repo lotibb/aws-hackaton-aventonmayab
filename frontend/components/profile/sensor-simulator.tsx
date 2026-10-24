@@ -22,7 +22,7 @@ const RUSH_INTERVAL_MS = 120
 export function SensorSimulator() {
   const user = useCurrentUser()
   const now = useNow()
-  const [zoneId, setZoneId] = useState<ZoneId>('A')
+  const [zoneId, setZoneId] = useState<ZoneId>('P1')
   const [rushing, setRushing] = useState(false)
   const { data: zones } = useZonesOccupancy(user)
   const { data: events } = useSensorEvents(user, zoneId)

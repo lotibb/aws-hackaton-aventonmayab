@@ -130,10 +130,16 @@ export function createSeed(): DbState {
   )
 
   const targets: Record<ZoneId, { occupied: number; exits: number; manual: number; lastMinAgo: number }> = {
-    A: { occupied: 112, exits: 38, manual: 108, lastMinAgo: 2 },
-    B: { occupied: 74, exits: 21, manual: 70, lastMinAgo: 1 },
-    C: { occupied: 28, exits: 9, manual: 31, lastMinAgo: 4 },
-    D: { occupied: 52, exits: 17, manual: 41, lastMinAgo: 2 },
+    P1: { occupied: 35, exits: 9, manual: 31, lastMinAgo: 4 },
+    P2: { occupied: 53, exits: 21, manual: 50, lastMinAgo: 1 },
+    P3: { occupied: 28, exits: 9, manual: 31, lastMinAgo: 4 },
+    P4: { occupied: 34, exits: 17, manual: 26, lastMinAgo: 2 },
+    P5: { occupied: 70, exits: 38, manual: 68, lastMinAgo: 2 },
+    P6: { occupied: 18, exits: 8, manual: 17, lastMinAgo: 3 },
+    P7: { occupied: 48, exits: 18, manual: 46, lastMinAgo: 2 },
+    P8: { occupied: 22, exits: 10, manual: 20, lastMinAgo: 1 },
+    P9: { occupied: 30, exits: 12, manual: 29, lastMinAgo: 2 },
+    P10: { occupied: 14, exits: 6, manual: 13, lastMinAgo: 3 },
   }
 
   const sensorCounters = {} as DbState['sensorCounters']
@@ -160,7 +166,7 @@ export function createSeed(): DbState {
   }
 
   const parkingEvents: ParkingEvent[] = [
-    { id: 'pe-1', userId: 'u-carlos', zoneId: 'B', type: 'entrada', timestamp: new Date(now.getTime() - 50 * 60000).toISOString() },
+    { id: 'pe-1', userId: 'u-carlos', zoneId: 'P8', type: 'entrada', timestamp: new Date(now.getTime() - 50 * 60000).toISOString() },
   ]
 
   return { users, trips, requests, schedules, parkingEvents, sensorCounters, sensorEvents, sensorStatus, manualEstimates }

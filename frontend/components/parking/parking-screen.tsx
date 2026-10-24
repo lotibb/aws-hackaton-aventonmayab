@@ -14,7 +14,7 @@ import { ZoneDetail } from './zone-detail'
 export function ParkingScreen() {
   const user = useCurrentUser()
   const { data: zones } = useZonesOccupancy(user)
-  const [zoneId, setZoneId] = useState<ZoneId>('A')
+  const [zoneId, setZoneId] = useState<ZoneId>('P1')
   const selected = zones?.find((z) => z.zone.id === zoneId)
 
   return (

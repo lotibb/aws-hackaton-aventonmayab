@@ -29,8 +29,14 @@ previous.sensorEvents = previous.sensorEvents.filter((event) => aliases[event.zo
 
 const unchanged = Object.fromEntries(['users', 'trips', 'requests', 'schedules'].map((field) => [field, JSON.stringify(previous[field])]))
 let stored = JSON.stringify(previous)
+const localValues = new Map()
+const dbKey = 'aventon-mayab:db:v2'
 global.window = {
-  localStorage: { getItem: () => stored, setItem: (_key, value) => { stored = value } },
+  localStorage: {
+    getItem: (key) => key === dbKey ? stored : localValues.get(key) ?? null,
+    setItem: (key, value) => { if (key === dbKey) stored = value; else localValues.set(key, value) },
+    removeItem: (key) => localValues.delete(key),
+  },
   addEventListener: () => {},
 }
 const { readDb } = require('../lib/mock/db.ts')
@@ -71,14 +77,19 @@ global.fetch = async (url, init = {}) => {
   if (method === 'POST' && path === '/parking/entry') {
     if (session) return reply(409, { message: 'Ya tienes una entrada activa. Registra tu salida primero.' })
     session = { userId: 'u', zoneId: body.zoneId, enteredAt: new Date().toISOString() }
+    const zone = zonesFromApi.find((z) => z.zoneId === body.zoneId)
+    zone.manualCount = Math.min(zone.capacity, zone.manualCount + 1)
     return reply(200, { session })
   }
   if (method === 'POST' && path === '/parking/exit') {
     if (!session) return reply(409, { message: 'No tienes una entrada activa' })
     const old = session
+    const zone = zonesFromApi.find((z) => z.zoneId === old.zoneId)
+    zone.manualCount = Math.max(0, zone.manualCount - 1)
     session = null
     return reply(200, { session: old })
   }
+  if (method === 'POST' && path === '/parking/demo/reset') return reply(200, zonesFromApi)
   return reply(404, { message: 'Ruta no encontrada' })
 }
 const { parkingService } = require('../lib/services/parking-service.ts')
@@ -92,13 +103,30 @@ parkingService.getZonesOccupancy(db.users[0]).then(async (zones) => {
     assert.equal(occupancy.source, api.sensorOnline ? 'simulado' : 'estimado')
     assert.equal(occupancy.occupied, api.sensorOnline ? api.sensorCount : api.manualCount)
   }
-  for (const zoneId of ['P9', 'P10']) {
+  for (const zoneId of ['P9', 'P10', 'P4']) {
+    const before = await parkingService.getZonesOccupancy(db.users[0])
+    const original = before.find((z) => z.zone.id === zoneId)
     await parkingService.checkIn(db.users[0], zoneId)
+    const after = await parkingService.getZonesOccupancy(db.users[0])
+    assert.equal(after.find((z) => z.zone.id === zoneId).occupied, original.occupied + 1, `${zoneId}: entry adds exactly one, including online sensors`)
+    assert.ok(after.filter((z) => z.zone.id !== zoneId).every((z) => z.occupied === before.find((b) => b.zone.id === z.zone.id).occupied), 'Other zones stay unchanged')
     assert.equal((await parkingService.getMyActiveEntry(db.users[0])).zoneId, zoneId)
     await assert.rejects(() => parkingService.checkIn(db.users[0], zoneId))
-    await parkingService.checkOut(db.users[0])
+    assert.equal((await parkingService.getZonesOccupancy(db.users[0])).find((z) => z.zone.id === zoneId).occupied, original.occupied + 1, 'Duplicate entry and refresh do not add another car')
+    // Reload the service to emulate a page reload: online adjustments survive.
+    delete require.cache[require.resolve('../lib/services/parking-service.ts')]
+    const reloaded = require('../lib/services/parking-service.ts').parkingService
+    assert.equal((await reloaded.getZonesOccupancy(db.users[0])).find((z) => z.zone.id === zoneId).occupied, original.occupied + 1)
+    await reloaded.checkOut(db.users[0])
+    assert.equal((await parkingService.getZonesOccupancy(db.users[0])).find((z) => z.zone.id === zoneId).occupied, original.occupied, `${zoneId}: exit subtracts exactly one`)
     assert.equal(await parkingService.getMyActiveEntry(db.users[0]), null)
+    await assert.rejects(() => parkingService.checkOut(db.users[0]))
+    assert.equal((await parkingService.getZonesOccupancy(db.users[0])).find((z) => z.zone.id === zoneId).occupied, original.occupied, 'Failed exit does not subtract again')
   }
+  await parkingService.checkIn(db.users[0], 'P9')
+  const { sensorService } = require('../lib/services/sensor-service.ts')
+  await sensorService.resetDemo(db.users[0])
+  assert.equal((await parkingService.getZonesOccupancy(db.users[0])).find((z) => z.zone.id === 'P9').occupied, zonesFromApi.find((z) => z.zoneId === 'P9').sensorCount, 'Demo reset clears visual adjustments')
   assert.ok(calls.includes('POST /parking/entry') && calls.includes('POST /parking/exit'))
-  console.log('PASS: legacy migration preserves user data; ten zones match the backend and have valid occupancy and seven-day forecasts; P9/P10 entry, duplicate protection and exit go through the API.')
+  console.log('PASS: migration, ten zones and forecasts; online/offline entry +1 and exit -1; duplicate protection; reload persistence; demo reset (mocked API).')
 }).catch((error) => { console.error(error); process.exitCode = 1 })

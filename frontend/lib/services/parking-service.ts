@@ -27,6 +27,42 @@ interface ApiSession {
 
 const isCampusZone = (id: string): id is ZoneId => PARKING_ZONES.some((z) => z.id === id)
 
+// Demo-only adjustments: manual registrations don't move the simulated sensors.
+// Keep their visual delta in this browser, separate from the API's manualCount.
+const MANUAL_ADJUSTMENTS_KEY = 'aventon-mayab:parking-manual-adjustments:v1'
+let manualAdjustments: Partial<Record<ZoneId, number>> = {}
+let storageUnavailable = false
+
+function readManualAdjustments() {
+  try {
+    if (!storageUnavailable && typeof window !== 'undefined') {
+      const stored = JSON.parse(window.localStorage.getItem(MANUAL_ADJUSTMENTS_KEY) ?? 'null')
+      manualAdjustments = stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {}
+    }
+  } catch { storageUnavailable = true }
+  return manualAdjustments
+}
+
+function adjustmentFor(zoneId: ZoneId) {
+  const value = readManualAdjustments()[zoneId]
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+function adjustManualDemo(zoneId: ZoneId, delta: number) {
+  manualAdjustments = { ...readManualAdjustments(), [zoneId]: adjustmentFor(zoneId) + delta }
+  try {
+    if (typeof window !== 'undefined') window.localStorage.setItem(MANUAL_ADJUSTMENTS_KEY, JSON.stringify(manualAdjustments))
+  } catch { storageUnavailable = true }
+}
+
+export function resetManualDemoAdjustments() {
+  manualAdjustments = {}
+  try {
+    if (typeof window !== 'undefined') window.localStorage.removeItem(MANUAL_ADJUSTMENTS_KEY)
+    storageUnavailable = false
+  } catch { storageUnavailable = true }
+}
+
 export async function fetchZones(): Promise<Array<ApiZone & { zoneId: ZoneId }>> {
   const zones = await api<ApiZone[]>('/parking/zones')
   // The table may hold other zones (e.g. integration tests); the app shows the campus ones.
@@ -39,7 +75,8 @@ function toOccupancy(api: ApiZone & { zoneId: ZoneId }): ZoneOccupancy {
   const sensorOccupied = clamp(api.sensorCount)
   const manualEstimate = clamp(api.manualCount)
   const online = api.sensorOnline
-  const occupied = online ? sensorOccupied : manualEstimate
+  // Offline already uses the API's manual count: don't apply the delta twice.
+  const occupied = online ? clamp(sensorOccupied + adjustmentFor(api.zoneId)) : manualEstimate
   const percentage = Math.round((occupied / zone.capacity) * 100)
   return {
     zone,
@@ -104,11 +141,14 @@ export const parkingService = {
   /** Each check-in nudges the zone's manual estimate; the API keeps both in one transaction. */
   async checkIn(_user: User, zoneId: ZoneId): Promise<void> {
     await api('/parking/entry', { method: 'POST', body: { zoneId } })
+    adjustManualDemo(zoneId, 1)
     notifyChange()
   },
 
   async checkOut(_user: User): Promise<void> {
-    await api('/parking/exit', { method: 'POST' })
+    const { session } = await api<{ session: ApiSession }>('/parking/exit', { method: 'POST' })
+    // Always subtract from the zone actually entered, not the current map selection.
+    adjustManualDemo(session.zoneId, -1)
     notifyChange()
   },
 

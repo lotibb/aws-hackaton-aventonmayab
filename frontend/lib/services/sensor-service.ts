@@ -1,7 +1,7 @@
 import { notifyChange } from '../mock/db'
 import type { SensorEvent, SensorType, User, ZoneId } from '../types'
 import { api } from './api'
-import { fetchZones } from './parking-service'
+import { fetchZones, resetManualDemoAdjustments } from './parking-service'
 
 /**
  * Infrared entrance/exit counters per zone. A counter reports each car with POST /parking/sensor-events;
@@ -28,6 +28,7 @@ export const sensorService = {
   /** Demo: puts every zone back to its starting counts. Students' active entries stay. */
   async resetDemo(_user: User): Promise<void> {
     await api('/parking/demo/reset', { method: 'POST' })
+    resetManualDemoAdjustments()
     notifyChange()
   },
 }

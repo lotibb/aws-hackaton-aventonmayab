@@ -52,7 +52,7 @@ Todas son on-demand: se paga por uso, centavos en una demo.
 
 | Tabla | Llave | Índices | Guarda |
 | --- | --- | --- | --- |
-| `aventon-users` | `userId` | | nombre, email, colonia, foto |
+| `aventon-users` | `userId` | | nombre, email, celular, colonia, foto |
 | `aventon-trips` | `tripId` | `byColonia` (colonia + departureTime), `byDriver` | viajes |
 | `aventon-seat-requests` | `tripId` + `passengerId` | `byPassenger` | solicitudes de asiento |
 | `aventon-parking-zones` | `zoneId` | | capacidad, conteo, última lectura del sensor |

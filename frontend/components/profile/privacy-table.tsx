@@ -20,8 +20,8 @@ const STAGES: Stage[] = [
   },
   {
     stage: 'Viaje aceptado',
-    driver: 'Ves la lista de pasajeros confirmados y el punto de encuentro público.',
-    passenger: 'Ves el nombre del conductor y el punto de encuentro público. Nunca direcciones.',
+    driver: 'Ves la lista de pasajeros confirmados, su celular y el punto de encuentro público.',
+    passenger: 'Ves el nombre y el celular del conductor y el punto de encuentro público. Nunca direcciones.',
   },
   {
     stage: '15 minutos antes',
@@ -46,7 +46,7 @@ export function PrivacyTable() {
   return (
     <div className="overflow-hidden rounded-2xl border bg-card">
       <p className="border-b p-4 text-sm leading-relaxed text-muted-foreground">
-        Qué ve cada persona en cada etapa del viaje. Tu correo, teléfono y horarios nunca se comparten.
+        Qué ve cada persona en cada etapa del viaje. Tu correo y tus horarios nunca se comparten; tu celular, solo con quien tiene un viaje aceptado contigo.
       </p>
       <table className="w-full text-left text-sm">
         <caption className="sr-only">Información compartida por etapa del viaje</caption>

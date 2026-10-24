@@ -20,6 +20,8 @@ export interface User {
   id: string
   email: string
   fullName: string
+  /** 10-digit mobile number. Accounts created before it was required may not have it. */
+  phone?: string
   photoUrl?: string
   colonia: Colonia
   activeMode: UserMode
@@ -34,6 +36,8 @@ export interface PublicProfile {
   displayName: string
   photoUrl?: string
   colonia: Colonia
+  /** Only present between a driver and an accepted passenger while the trip is active. */
+  phone?: string
 }
 
 /**

@@ -1,5 +1,5 @@
 import { BUILDINGS } from '../config'
-import { timeToMinutes } from '../format'
+import { normalizePhone, timeToMinutes } from '../format'
 import { createId, notifyChange, readDb, writeDb } from '../mock/db'
 import { fetchAuthSession } from 'aws-amplify/auth'
 import { COLONIAS, type Colonia, type Schedule, type User, type UserMode } from '../types'
@@ -7,7 +7,7 @@ import { api } from './api'
 import { authService } from './authService'
 import { ServiceError } from './errors'
 
-// Name, colonia and photo are not stored in Cognito. The sign-up form stashes them here and
+// Name, phone, colonia and photo are not stored in Cognito. The sign-up form stashes them here and
 // they are saved to the profile API (keyed by the Cognito `sub`) on first sign-in.
 const PENDING_PROFILES_KEY = 'aventon-mayab:pending-profiles'
 
@@ -17,6 +17,7 @@ interface ApiProfile {
   email: string
   name?: string
   colonia?: Colonia
+  phone?: string
   photoUrl?: string
   activeMode?: UserMode
   privacyAcceptedAt?: string
@@ -30,6 +31,7 @@ function toUser(profile: ApiProfile): User {
     email: profile.email,
     fullName: profile.name ?? nameFromEmail(profile.email),
     colonia: profile.colonia ?? COLONIAS[0],
+    phone: profile.phone,
     photoUrl: profile.photoUrl,
     activeMode: profile.activeMode ?? 'pasajero',
     verified: true,
@@ -44,6 +46,7 @@ async function saveUser(user: User): Promise<User> {
     body: {
       name: user.fullName,
       colonia: user.colonia,
+      phone: user.phone,
       photoUrl: user.photoUrl,
       activeMode: user.activeMode,
       privacyAcceptedAt: user.privacyAcceptedAt,
@@ -54,6 +57,7 @@ async function saveUser(user: User): Promise<User> {
 
 interface PendingProfile {
   fullName: string
+  phone?: string
   colonia: Colonia
   privacyAcceptedAt: string
 }
@@ -88,6 +92,7 @@ async function currentEmail(): Promise<string> {
 
 export interface ProfileUpdate {
   fullName?: string
+  phone?: string
   colonia?: Colonia
   photoUrl?: string | null
 }
@@ -143,10 +148,11 @@ function toSchedule(user: User, input: ScheduleInput): Schedule {
 }
 
 export const userService = {
-  savePendingProfile(email: string, profile: { fullName: string; colonia: Colonia }) {
+  savePendingProfile(email: string, profile: { fullName: string; phone: string; colonia: Colonia }) {
     const profiles = readPendingProfiles()
     profiles[email.trim().toLowerCase()] = {
       fullName: profile.fullName.trim(),
+      phone: normalizePhone(profile.phone) ?? undefined,
       colonia: profile.colonia,
       privacyAcceptedAt: new Date().toISOString(),
     }
@@ -168,6 +174,7 @@ export const userService = {
       ...profile,
       email,
       name: pending?.fullName ?? local?.fullName,
+      phone: pending?.phone,
       colonia: pending?.colonia ?? local?.colonia,
       photoUrl: local?.photoUrl,
       activeMode: local?.activeMode,
@@ -191,10 +198,13 @@ export const userService = {
       throw new ServiceError('INVALID_INPUT', 'Escribe tu nombre completo.')
     }
     if (update.colonia && !COLONIAS.includes(update.colonia)) throw new ServiceError('INVALID_INPUT', 'Colonia no válida.')
+    const phone = update.phone === undefined ? undefined : normalizePhone(update.phone)
+    if (phone === null) throw new ServiceError('INVALID_INPUT', 'Escribe un celular de 10 dígitos.')
     const current = await this.getProfile(user)
     const next: User = { ...current }
     if (update.fullName !== undefined) next.fullName = update.fullName.trim()
     if (update.colonia) next.colonia = update.colonia
+    if (phone) next.phone = phone
     // Photos arrive already resized to a small data URL (see profile-card).
     if (update.photoUrl !== undefined) next.photoUrl = update.photoUrl ?? undefined
     const saved = await saveUser(next)

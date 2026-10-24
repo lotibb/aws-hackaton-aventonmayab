@@ -7,6 +7,7 @@ import { ComingSoonBadge } from '@/components/shared/coming-soon'
 import { UserAvatar } from '@/components/shared/user-avatar'
 import { useCurrentUser, useTrip } from '@/hooks/use-data'
 import { firstName, formatTripDate } from '@/lib/format'
+import { ContactPhone } from './contact-phone'
 import { TripActions } from './trip-actions'
 import { TripProgress, TripStatusBadge, TripTimeline } from './trip-status'
 
@@ -57,6 +58,7 @@ export function TripDetail({ tripId }: { tripId: string }) {
           <p className="text-sm text-muted-foreground">Estudiante verificado · {trip.driver.colonia}</p>
         </div>
       </section>
+      {trip.myRole === 'pasajero' && trip.driver.phone && <ContactPhone name={trip.driver.displayName} phone={trip.driver.phone} />}
 
       <dl className="grid grid-cols-2 gap-3">
         <Detail icon={Clock} label="Salida">
@@ -91,7 +93,7 @@ export function TripDetail({ tripId }: { tripId: string }) {
         trip.status !== 'cancelado' && (
           <p className="flex items-start gap-2 rounded-xl bg-muted p-3 text-sm leading-relaxed text-muted-foreground">
             <Lock className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            El punto de encuentro exacto se muestra solo cuando el conductor acepta tu solicitud.
+            El punto de encuentro exacto y el celular del conductor se muestran solo cuando acepta tu solicitud.
           </p>
         )
       )}

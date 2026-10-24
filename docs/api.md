@@ -65,3 +65,4 @@ Perfil público (`driver`, `passenger`): `{ id, name, colonia, photoUrl }`, o `n
 | `GET /me/schedule` | | Clases del alumno |
 | `PUT /me/schedule/{slotId}` | `{ day: 1-7 (lunes-domingo), start: "HH:MM", end: "HH:MM", subject? }` | La clase guardada |
 | `DELETE /me/schedule/{slotId}` | | |
+| `POST /me/schedule/import` | `{ file: base64, mediaType: "application/pdf" \| "image/jpeg" \| "image/png" \| "image/webp", buildings?: string[] }` | `{ classes: [{ day: 1-7, start, end, subject?, room?, building? }] }` leídas del archivo con Claude. No guarda nada. Archivo de hasta 4 MB; 422 si no encuentra clases |

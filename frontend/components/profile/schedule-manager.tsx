@@ -1,7 +1,7 @@
 'use client'
 
-import { Loader2, Lock, Plus, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import { FileUp, Loader2, Lock, Plus, Trash2 } from 'lucide-react'
+import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,8 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useSchedules } from '@/hooks/use-data'
 import { BUILDINGS } from '@/lib/config'
 import { timeToMinutes, WEEKDAYS, WEEKDAYS_SHORT } from '@/lib/format'
-import { errorMessage, userService } from '@/lib/services'
+import { readScheduleFile } from '@/lib/schedule-file'
+import { errorMessage, userService, type ImportedClass } from '@/lib/services'
 import type { User } from '@/lib/types'
+import { ScheduleImportReview } from './schedule-import-review'
 
 const SCHOOL_DAYS = [1, 2, 3, 4, 5, 6]
 
@@ -24,6 +26,9 @@ export function ScheduleManager({ user }: { user: User }) {
   const [building, setBuilding] = useState(BUILDINGS[0])
   const [subject, setSubject] = useState('')
   const [pending, setPending] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [reading, setReading] = useState(false)
+  const [imported, setImported] = useState<ImportedClass[] | null>(null)
 
   const sorted = [...(schedules ?? [])].sort(
     (a, b) => ((a.weekday + 6) % 7) - ((b.weekday + 6) % 7) || timeToMinutes(a.start) - timeToMinutes(b.start),
@@ -41,6 +46,21 @@ export function ScheduleManager({ user }: { user: User }) {
       toast.error(errorMessage(err))
     } finally {
       setPending(false)
+    }
+  }
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setReading(true)
+    try {
+      setImported(await userService.importSchedule(await readScheduleFile(file)))
+      setAdding(false)
+    } catch (err) {
+      toast.error(errorMessage(err))
+    } finally {
+      setReading(false)
     }
   }
 
@@ -85,7 +105,9 @@ export function ScheduleManager({ user }: { user: User }) {
         </ul>
       )}
 
-      {adding ? (
+      {imported ? (
+        <ScheduleImportReview user={user} classes={imported} existing={schedules ?? []} onDone={() => setImported(null)} />
+      ) : adding ? (
         <form onSubmit={add} className="flex flex-col gap-3 border-t p-4">
           <div className="grid grid-cols-3 gap-2">
             <div className="flex flex-col gap-2">
@@ -142,11 +164,18 @@ export function ScheduleManager({ user }: { user: User }) {
           </div>
         </form>
       ) : (
-        <Button variant="ghost" className="h-12 rounded-none border-t text-primary" onClick={() => setAdding(true)}>
-          <Plus aria-hidden="true" />
-          Agregar clase
-        </Button>
+        <div className="grid grid-cols-2 divide-x border-t">
+          <Button variant="ghost" className="h-12 rounded-none text-primary" onClick={() => setAdding(true)} disabled={reading}>
+            <Plus aria-hidden="true" />
+            Agregar clase
+          </Button>
+          <Button variant="ghost" className="h-12 rounded-none text-primary" onClick={() => fileRef.current?.click()} disabled={reading}>
+            {reading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <FileUp aria-hidden="true" />}
+            {reading ? 'Leyendo horario…' : 'Subir foto o PDF'}
+          </Button>
+        </div>
       )}
+      <input ref={fileRef} type="file" accept="application/pdf,image/*" className="hidden" onChange={onFile} />
     </div>
   )
 }

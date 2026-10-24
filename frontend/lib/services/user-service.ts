@@ -100,6 +100,48 @@ export interface ScheduleInput {
   subject?: string
 }
 
+export type ScheduleFileType = 'application/pdf' | 'image/jpeg' | 'image/png' | 'image/webp'
+
+/** A class read from an uploaded timetable, still to be reviewed by the student. */
+export interface ImportedClass {
+  weekday: number
+  start: string
+  end: string
+  subject?: string
+  room?: string
+  /** Only when the timetable makes it clear; otherwise the student picks it. */
+  building?: string
+}
+
+interface ApiImportedClass {
+  day: number
+  start: string
+  end: string
+  subject?: string
+  room?: string
+  building?: string
+}
+
+function toSchedule(user: User, input: ScheduleInput): Schedule {
+  if (input.weekday < 0 || input.weekday > 6) throw new ServiceError('INVALID_INPUT', 'Día no válido.')
+  if (!/^\d{2}:\d{2}$/.test(input.start) || !/^\d{2}:\d{2}$/.test(input.end)) {
+    throw new ServiceError('INVALID_INPUT', 'Horario no válido.')
+  }
+  if (timeToMinutes(input.end) <= timeToMinutes(input.start)) {
+    throw new ServiceError('INVALID_INPUT', 'La hora de fin debe ser posterior a la de inicio.')
+  }
+  if (!BUILDINGS.includes(input.building)) throw new ServiceError('INVALID_INPUT', 'Selecciona un edificio.')
+  return {
+    id: createId('s'),
+    userId: user.id,
+    weekday: input.weekday,
+    start: input.start,
+    end: input.end,
+    building: input.building,
+    subject: input.subject?.trim().slice(0, 60) || undefined,
+  }
+}
+
 export const userService = {
   savePendingProfile(email: string, profile: { fullName: string; colonia: Colonia }) {
     const profiles = readPendingProfiles()
@@ -192,27 +234,34 @@ export const userService = {
   },
 
   async addSchedule(user: User, input: ScheduleInput): Promise<Schedule> {
-    if (input.weekday < 0 || input.weekday > 6) throw new ServiceError('INVALID_INPUT', 'Día no válido.')
-    if (!/^\d{2}:\d{2}$/.test(input.start) || !/^\d{2}:\d{2}$/.test(input.end)) {
-      throw new ServiceError('INVALID_INPUT', 'Horario no válido.')
-    }
-    if (timeToMinutes(input.end) <= timeToMinutes(input.start)) {
-      throw new ServiceError('INVALID_INPUT', 'La hora de fin debe ser posterior a la de inicio.')
-    }
-    if (!BUILDINGS.includes(input.building)) throw new ServiceError('INVALID_INPUT', 'Selecciona un edificio.')
-    const schedule: Schedule = {
-      id: createId('s'),
-      userId: user.id,
-      weekday: input.weekday,
-      start: input.start,
-      end: input.end,
-      building: input.building,
-      subject: input.subject?.trim().slice(0, 60) || undefined,
-    }
-    writeDb((db) => {
-      db.schedules.push(schedule)
-    })
+    const [schedule] = await this.addSchedules(user, [input])
     return schedule
+  },
+
+  /** Adds several classes at once; if any is invalid, none is saved. */
+  async addSchedules(user: User, inputs: ScheduleInput[]): Promise<Schedule[]> {
+    const schedules = inputs.map((input) => toSchedule(user, input))
+    writeDb((db) => {
+      db.schedules.push(...schedules)
+    })
+    return schedules
+  },
+
+  /** Reads a timetable (PDF or image, base64) with Claude on the API. Nothing is saved until the student confirms. */
+  async importSchedule(file: { data: string; mediaType: ScheduleFileType }): Promise<ImportedClass[]> {
+    const { classes } = await api<{ classes: ApiImportedClass[] }>('/me/schedule/import', {
+      method: 'POST',
+      body: { file: file.data, mediaType: file.mediaType, buildings: BUILDINGS },
+    })
+    return classes.map((c) => ({
+      // The API counts days 1 (lunes) to 7 (domingo); the app uses 0 (domingo) to 6.
+      weekday: c.day % 7,
+      start: c.start,
+      end: c.end,
+      subject: c.subject,
+      room: c.room,
+      building: c.building,
+    }))
   },
 
   async removeSchedule(user: User, scheduleId: string): Promise<void> {

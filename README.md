@@ -17,8 +17,10 @@ El frontend nunca habla directo con la base de datos y no necesita llaves de AWS
 ## Estructura
 
 ```
-├── frontend/              App web (Next.js en Vercel)
-│   ├── lib/services/      authService.ts (Cognito) y api.ts (llamadas a la API)
+├── frontend/              App web (Next.js en Vercel, Root Directory = frontend)
+│   ├── app/               Páginas
+│   ├── components/        Componentes de UI
+│   ├── lib/services/      authService.ts (Cognito), api.ts (llamadas a la API) y servicios
 │   └── .env.example       Variables para Vercel
 ├── backend/               Todo lo de AWS
 │   ├── infra/             Cognito y tablas de DynamoDB
@@ -31,7 +33,7 @@ El frontend nunca habla directo con la base de datos y no necesita llaves de AWS
     └── api.md             Rutas de la API para el frontend
 ```
 
-- [`frontend/README.md`](frontend/README.md): cómo agregar la app y configurar Vercel.
+- [`frontend/README.md`](frontend/README.md): cómo correr la app y configurar Vercel.
 - [`backend/README.md`](backend/README.md): cómo desplegar y probar.
 - [`docs/api.md`](docs/api.md): la API.
 

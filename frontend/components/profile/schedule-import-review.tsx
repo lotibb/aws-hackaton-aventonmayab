@@ -31,11 +31,13 @@ export function ScheduleImportReview({
   classes,
   existing,
   onDone,
+  onSaved,
 }: {
   user: User
   classes: ImportedClass[]
   existing: Schedule[]
   onDone: () => void
+  onSaved: () => void
 }) {
   const [rows, setRows] = useState(() => toRows(classes, existing))
   const [pending, setPending] = useState(false)
@@ -57,10 +59,11 @@ export function ScheduleImportReview({
     try {
       await userService.addSchedules(
         user,
-        selected.map((r) => ({ weekday: r.weekday, start: r.start, end: r.end, building: r.building!, subject: r.subject })),
+        selected.map((r) => ({ weekday: r.weekday, start: r.start, end: r.end, building: r.building!, subject: r.subject, room: r.room })),
       )
       toast.success(selected.length === 1 ? 'Se agregó 1 clase.' : `Se agregaron ${selected.length} clases.`)
       onDone()
+      onSaved()
     } catch (err) {
       toast.error(errorMessage(err))
     } finally {

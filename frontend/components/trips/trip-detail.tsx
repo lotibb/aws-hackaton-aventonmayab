@@ -10,6 +10,7 @@ import { firstName, formatTripDate } from '@/lib/format'
 import { ContactPhone } from './contact-phone'
 import { TripActions } from './trip-actions'
 import { TripProgress, TripStatusBadge, TripTimeline } from './trip-status'
+import { WeeklyDaysTable } from './weekly-days'
 
 export function TripDetailFromQuery() {
   return <TripDetail tripId={useSearchParams().get('id') ?? ''} />
@@ -61,9 +62,15 @@ export function TripDetail({ tripId }: { tripId: string }) {
       {trip.myRole === 'pasajero' && trip.driver.phone && <ContactPhone name={trip.driver.displayName} phone={trip.driver.phone} />}
 
       <dl className="grid grid-cols-2 gap-3">
-        <Detail icon={Clock} label="Salida">
-          <span className="capitalize">{formatTripDate(trip.date)}</span>, {trip.time}
-        </Detail>
+        {trip.kind === 'weekly' ? (
+          <Detail icon={Clock} label="Horario">
+            Toda la semana
+          </Detail>
+        ) : (
+          <Detail icon={Clock} label="Salida">
+            <span className="capitalize">{formatTripDate(trip.date)}</span>, {trip.time}
+          </Detail>
+        )}
         <Detail icon={Users} label="Lugares">
           {trip.seatsAvailable} de {trip.seatsTotal} libres
         </Detail>
@@ -77,6 +84,18 @@ export function TripDetail({ tripId }: { tripId: string }) {
           {trip.routeDescription}
         </Detail>
       </dl>
+
+      {trip.kind === 'weekly' && trip.days && (
+        <section aria-labelledby="week-title" className="flex flex-col gap-2 rounded-2xl border bg-card p-4">
+          <h2 id="week-title" className="text-sm font-semibold">
+            {trip.myRole === 'conductor' ? 'Tu semana' : 'La semana del conductor'}
+          </h2>
+          <WeeklyDaysTable days={trip.days} />
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Un lugar en este viaje es para toda la semana: llega a la uni y regresa a estas horas cada día.
+          </p>
+        </section>
+      )}
 
       {trip.meetingPoint ? (
         <section className="flex flex-col gap-1 rounded-2xl border border-primary/30 bg-primary/6 p-4" aria-labelledby="meeting">

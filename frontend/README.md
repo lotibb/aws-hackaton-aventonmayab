@@ -1,6 +1,6 @@
 # Frontend
 
-App web (Next.js), publicada en AWS como sitio estático: **__FRONTEND_URL__**. Todos los comandos se corren desde `frontend/`.
+App web (Next.js), publicada en AWS como sitio estático: **https://d1ivrhj0shesvg.cloudfront.net**. Todos los comandos se corren desde `frontend/`.
 
 ## Desarrollo local
 

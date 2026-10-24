@@ -2,7 +2,7 @@
 
 App para estudiantes de la Anáhuac Mayab: aventones entre compañeros y disponibilidad del estacionamiento. Proyecto para el hackathon de AWS.
 
-**App:** __FRONTEND_URL__
+**App:** https://d1ivrhj0shesvg.cloudfront.net
 
 ## Arquitectura
 
@@ -54,3 +54,4 @@ Smart Parking requiere el **access token** de Cognito: el `authService.getToken(
 - [ ] Paso 6: Sensores del estacionamiento con IoT Core
 - [ ] Paso 7: Pronósticos
 - [ ] Paso 8: Conectar el frontend: listo para login, perfil, viajes y solicitudes; faltan estacionamiento y horarios
+- [x] Frontend publicado en AWS (S3 + CloudFront): https://d1ivrhj0shesvg.cloudfront.net

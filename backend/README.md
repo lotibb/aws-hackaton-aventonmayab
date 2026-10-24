@@ -65,7 +65,7 @@ Todas son on-demand: se paga por uso, centavos en una demo.
 URL: `https://zdm8p9cfd7.execute-api.us-east-1.amazonaws.com` (output `ApiUrl`).
 
 - **HTTP API** con un authorizer JWT de Cognito en todas las rutas: sin token válido responde 401 antes de llegar a las Lambdas.
-- **CORS:** el parámetro `AllowedOrigins` de `samconfig.toml`: solo la app publicada (`__FRONTEND_URL__`) y `http://localhost:3000` para desarrollo. Si agregas otro dominio, súmalo ahí y corre `sam deploy`.
+- **CORS:** el parámetro `AllowedOrigins` de `samconfig.toml`: solo la app publicada (`https://d1ivrhj0shesvg.cloudfront.net`) y `http://localhost:3000` para desarrollo. Si agregas otro dominio, súmalo ahí y corre `sam deploy`.
 - **Límite:** 50 solicitudes por segundo (ráfagas de 100), para que un error o abuso no dispare el costo.
 
 ## Lambdas (`src/`)

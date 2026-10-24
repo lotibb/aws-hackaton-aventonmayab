@@ -79,12 +79,15 @@ export function readDb(): DbState {
   return state
 }
 
-/** Runs a mutation synchronously (single-threaded, so it behaves atomically), then broadcasts. */
-export function writeDb<T>(mutate: (db: DbState) => T): T {
+/**
+ * Runs a mutation synchronously (single-threaded, so it behaves atomically), then broadcasts.
+ * Pass `notify: false` to refresh a local cache without making every screen refetch.
+ */
+export function writeDb<T>(mutate: (db: DbState) => T, { notify = true }: { notify?: boolean } = {}): T {
   const db = readDb()
   const result = mutate(db)
   persist(db)
-  emit()
+  if (notify) emit()
   return result
 }
 

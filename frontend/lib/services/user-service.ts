@@ -292,9 +292,16 @@ export const userService = {
       building: s.building ?? cachedById.get(s.slotId)?.building ?? 'Sin edificio',
       room: s.room ?? cachedById.get(s.slotId)?.room,
     })).sort((a, b) => a.weekday - b.weekday || timeToMinutes(a.start) - timeToMinutes(b.start))
-    writeDb((db) => {
-      db.schedules = [...db.schedules.filter((s) => s.userId !== user.id), ...schedules]
-    })
+    // Refresh the local copy only when it changed, and quietly: a change notification makes
+    // every screen refetch, which calls this again in an endless loop (also across tabs).
+    if (JSON.stringify(cached) !== JSON.stringify(schedules)) {
+      writeDb(
+        (db) => {
+          db.schedules = [...db.schedules.filter((s) => s.userId !== user.id), ...schedules]
+        },
+        { notify: false },
+      )
+    }
     return schedules
   },
 

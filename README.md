@@ -8,6 +8,12 @@ Celular → Vercel → API Gateway (JWT de Cognito) → Lambda → DynamoDB
 
 Región: **us-east-1** para todo.
 
+## Backend de Smart Parking
+
+El módulo está en [`backend/smartparking/`](backend/smartparking/). Incluye la API de zonas, entradas y salidas, infraestructura AWS CDK, pruebas y el contrato para el frontend TSX. Ejecuta sus comandos desde esa carpeta; consulta su [guía de desarrollo y despliegue](backend/smartparking/README.md).
+
+Smart Parking requiere el **access token** de Cognito: el `authService.getToken()` actual devuelve un ID token, por lo que para este módulo se debe obtener `tokens.accessToken` mediante `fetchAuthSession()`, como muestra su README. El stack CDK crea tablas propias; todavía no reutiliza las tablas de parking del stack `aventon-mayab-data` descrito abajo.
+
 ## Paso 2: Login con Cognito
 
 `infra/cognito.yaml` crea:

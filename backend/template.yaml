@@ -98,11 +98,18 @@ Resources:
         MySession: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: GET, Path: /parking/session } }
         Entry: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: /parking/entry } }
         Exit: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: /parking/exit } }
+        Presence: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: GET, Path: /parking/presence } }
+        SensorEvent: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: /parking/sensor-events } }
+        SensorOnline: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/parking/zones/{zoneId}/sensor" } }
+        ResetDemo: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: /parking/demo/reset } }
       Policies:
-        - DynamoDBReadPolicy:
+        - DynamoDBCrudPolicy:
             TableName: aventon-parking-zones
         - DynamoDBCrudPolicy:
             TableName: aventon-parking-sessions
+        # Only to count, per time slot, how many students have class (forecasts).
+        - DynamoDBReadPolicy:
+            TableName: aventon-schedules
 
   ProfileFunction:
     Type: AWS::Serverless::Function
@@ -129,6 +136,8 @@ Resources:
             TableName: aventon-trips
         - DynamoDBCrudPolicy:
             TableName: aventon-seat-requests
+        - DynamoDBCrudPolicy:
+            TableName: aventon-parking-zones
         - DynamoDBCrudPolicy:
             TableName: aventon-parking-sessions
         - Statement:

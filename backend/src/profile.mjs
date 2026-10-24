@@ -90,11 +90,11 @@ async function getSchedule(event) {
   return query(tables.schedules, undefined, "userId", userId);
 }
 
-// PUT /me/schedule/{slotId}  { day: 1-7 (lunes-domingo), start: "HH:MM", end: "HH:MM", subject? }
+// PUT /me/schedule/{slotId}  { day: 1-7 (lunes-domingo), start: "HH:MM", end: "HH:MM", building?, subject? }
 async function saveSlot(event) {
   const { userId } = caller(event);
   const { slotId } = event.pathParameters;
-  const { day, start, end, subject } = readBody(event);
+  const { day, start, end, building, subject } = readBody(event);
   if (slotId.length > 64) throw new HttpError(400, "slotId demasiado largo");
   if (!Number.isInteger(day) || day < 1 || day > 7) {
     throw new HttpError(400, "day debe ser de 1 (lunes) a 7 (domingo)");
@@ -102,7 +102,15 @@ async function saveSlot(event) {
   if (!TIME.test(start) || !TIME.test(end) || start >= end) {
     throw new HttpError(400, "Horario inválido, usa HH:MM");
   }
-  const slot = { userId, slotId, day, start, end, subject: optionalText(subject, "Materia", 100) };
+  const slot = {
+    userId,
+    slotId,
+    day,
+    start,
+    end,
+    building: optionalText(building, "Edificio", 60),
+    subject: optionalText(subject, "Materia", 100),
+  };
   await db.send(new PutCommand({ TableName: tables.schedules, Item: slot }));
   return slot;
 }
@@ -150,7 +158,25 @@ async function deleteAccount(event) {
   for (const slot of await query(tables.schedules, undefined, "userId", id)) {
     await remove(tables.schedules, { userId: id, slotId: slot.slotId });
   }
-  await remove(tables.parkingSessions, { userId: id });
+  // An open parking entry leaves the zone's estimate too.
+  const { Attributes: parked } = await db.send(
+    new DeleteCommand({ TableName: tables.parkingSessions, Key: { userId: id }, ReturnValues: "ALL_OLD" }),
+  );
+  if (parked) {
+    await db
+      .send(
+        new UpdateCommand({
+          TableName: tables.parkingZones,
+          Key: { zoneId: parked.zoneId },
+          UpdateExpression: "SET manualCount = manualCount - :one",
+          ConditionExpression: "manualCount > :zero",
+          ExpressionAttributeValues: { ":one": 1, ":zero": 0 },
+        }),
+      )
+      .catch((err) => {
+        if (!isConditionFailed(err)) throw err;
+      });
+  }
   await remove(tables.users, { userId: id });
 
   await cognito.send(

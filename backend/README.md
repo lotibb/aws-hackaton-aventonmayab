@@ -55,7 +55,7 @@ Todas son on-demand: se paga por uso, centavos en una demo.
 | `aventon-users` | `userId` | | nombre, email, celular, colonia, foto |
 | `aventon-trips` | `tripId` | `byColonia` (colonia + departureTime), `byDriver` | viajes |
 | `aventon-seat-requests` | `tripId` + `passengerId` | `byPassenger` | solicitudes de asiento |
-| `aventon-parking-zones` | `zoneId` | | capacidad, conteo, última lectura del sensor |
+| `aventon-parking-zones` | `zoneId` | | capacidad, conteo de sensores, estimado manual, últimas lecturas |
 | `aventon-parking-sessions` | `userId` | | entrada activa del alumno |
 | `aventon-schedules` | `userId` + `slotId` | | horario de clases (privado) |
 
@@ -74,7 +74,7 @@ URL: `https://zdm8p9cfd7.execute-api.us-east-1.amazonaws.com` (output `ApiUrl`).
 | Función | Archivo | Rutas |
 | --- | --- | --- |
 | `aventon-trips` | `trips.mjs` | viajes y solicitudes de asiento |
-| `aventon-parking` | `parking.mjs` | zonas, entrada y salida |
+| `aventon-parking` | `parking.mjs` | zonas, entrada y salida, sensores (simulador) y conteos para las proyecciones |
 | `aventon-profile` | `profile.mjs` | perfil, horario y borrar cuenta |
 | `aventon-schedule-import` | `schedule-import.mjs` | lee un horario en foto o PDF con Claude |
 

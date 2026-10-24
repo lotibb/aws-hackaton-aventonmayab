@@ -1,6 +1,7 @@
 import { BUILDINGS } from '../config'
 import { normalizePhone, timeToMinutes } from '../format'
 import { createId, notifyChange, readDb, writeDb } from '../mock/db'
+import { invalidatePresence } from './parking-service'
 import { fetchAuthSession } from 'aws-amplify/auth'
 import { COLONIAS, type Colonia, type Schedule, type User, type UserMode } from '../types'
 import { api } from './api'
@@ -118,6 +119,45 @@ export interface ImportedClass {
   building?: string
 }
 
+// A class as stored by the API (PUT /me/schedule/{slotId}).
+interface ApiSlot {
+  userId: string
+  slotId: string
+  /** 1 = lunes … 7 = domingo */
+  day: number
+  start: string
+  end: string
+  building?: string
+  subject?: string
+}
+
+const toApiDay = (weekday: number) => (weekday === 0 ? 7 : weekday)
+
+function fromSlot(slot: ApiSlot): Schedule {
+  return {
+    id: slot.slotId,
+    userId: slot.userId,
+    weekday: slot.day % 7,
+    start: slot.start,
+    end: slot.end,
+    building: slot.building ?? 'Edificio sin definir',
+    subject: slot.subject,
+  }
+}
+
+async function saveSlots(schedules: Schedule[]): Promise<void> {
+  await Promise.all(
+    schedules.map((s) =>
+      api(`/me/schedule/${encodeURIComponent(s.id)}`, {
+        method: 'PUT',
+        body: { day: toApiDay(s.weekday), start: s.start, end: s.end, building: s.building, subject: s.subject },
+      }),
+    ),
+  )
+  // Forecasts count everyone's classes, the student's included.
+  invalidatePresence()
+}
+
 interface ApiImportedClass {
   day: number
   start: string
@@ -226,7 +266,7 @@ export const userService = {
     } catch {
       throw new ServiceError('CONFLICT', 'No pudimos eliminar tu cuenta. Vuelve a iniciar sesión e inténtalo de nuevo.')
     }
-    // Schedules and parking check-ins still live in this browser until their APIs are connected.
+    // Anything this browser still kept for the account.
     writeDb((db) => {
       db.schedules = db.schedules.filter((s) => s.userId !== user.id)
       db.parkingEvents = db.parkingEvents.filter((e) => e.userId !== user.id)
@@ -236,11 +276,19 @@ export const userService = {
     await authService.signOut().catch(() => {})
   },
 
-  // Schedules are private: the authorizer restricts every query to the owner's partition key.
+  // Schedules are private: the API only ever returns the caller's own.
   async listSchedules(user: User): Promise<Schedule[]> {
-    return readDb()
-      .schedules.filter((s) => s.userId === user.id)
-      .sort((a, b) => a.weekday - b.weekday || timeToMinutes(a.start) - timeToMinutes(b.start))
+    let schedules = (await api<ApiSlot[]>('/me/schedule')).map(fromSlot)
+    // Classes saved in this browser before schedules lived in the API move there once.
+    const local = readDb().schedules.filter((s) => s.userId === user.id)
+    if (schedules.length === 0 && local.length > 0) {
+      await saveSlots(local)
+      writeDb((db) => {
+        db.schedules = db.schedules.filter((s) => s.userId !== user.id)
+      })
+      schedules = local
+    }
+    return schedules.sort((a, b) => a.weekday - b.weekday || timeToMinutes(a.start) - timeToMinutes(b.start))
   },
 
   async addSchedule(user: User, input: ScheduleInput): Promise<Schedule> {
@@ -251,9 +299,8 @@ export const userService = {
   /** Adds several classes at once; if any is invalid, none is saved. */
   async addSchedules(user: User, inputs: ScheduleInput[]): Promise<Schedule[]> {
     const schedules = inputs.map((input) => toSchedule(user, input))
-    writeDb((db) => {
-      db.schedules.push(...schedules)
-    })
+    await saveSlots(schedules)
+    notifyChange()
     return schedules
   },
 
@@ -274,11 +321,9 @@ export const userService = {
     }))
   },
 
-  async removeSchedule(user: User, scheduleId: string): Promise<void> {
-    writeDb((db) => {
-      const found = db.schedules.find((s) => s.id === scheduleId)
-      if (!found || found.userId !== user.id) throw new ServiceError('FORBIDDEN', 'No puedes modificar este horario.')
-      db.schedules = db.schedules.filter((s) => s.id !== scheduleId)
-    })
+  async removeSchedule(_user: User, scheduleId: string): Promise<void> {
+    await api(`/me/schedule/${encodeURIComponent(scheduleId)}`, { method: 'DELETE' })
+    invalidatePresence()
+    notifyChange()
   },
 }

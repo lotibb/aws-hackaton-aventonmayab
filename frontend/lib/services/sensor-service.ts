@@ -1,59 +1,33 @@
-import { getZone } from '../config'
-import { createId, readDb, writeDb } from '../mock/db'
-import type { SensorEvent, SensorStatus, SensorType, User, ZoneId } from '../types'
-import { ServiceError } from './errors'
-
-const MAX_STORED_EVENTS = 400
+import { notifyChange } from '../mock/db'
+import type { SensorEvent, SensorType, User, ZoneId } from '../types'
+import { api } from './api'
+import { fetchZones } from './parking-service'
 
 /**
- * Infrared entrance/exit counters per zone.
- * In production each counter publishes to an AWS IoT Core topic (e.g. `mayab/parking/{zoneId}/{sensorType}`);
- * an IoT Rule writes the event to DynamoDB and atomically increments the zone counters
- * (UpdateExpression: ADD entries :one). The app receives updates through an IoT/WebSocket subscription.
- * Sensors only count cars: no plates, no images, no personal data.
+ * Infrared entrance/exit counters per zone. A counter reports each car with POST /parking/sensor-events;
+ * today the simulator in Perfil sends those events. Sensors only count cars: no plates, no images, no personal data.
  */
 export const sensorService = {
-  async getStatuses(_user: User): Promise<SensorStatus[]> {
-    return Object.values(readDb().sensorStatus)
-  },
-
   async listRecentEvents(_user: User, zoneId: ZoneId, limit = 6): Promise<SensorEvent[]> {
-    return readDb()
-      .sensorEvents.filter((e) => e.zoneId === zoneId)
-      .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
-      .slice(0, limit)
+    const zone = (await fetchZones()).find((z) => z.zoneId === zoneId)
+    return (zone?.recentEvents ?? []).slice(0, limit).map((e) => ({ ...e, zoneId }))
   },
 
-  /** Demo only. Simulates the payload an IoT Core rule would ingest. */
+  /** Demo: sends the same event a physical counter would. */
   async simulateEvent(_user: User, zoneId: ZoneId, sensorType: SensorType): Promise<void> {
-    const zone = getZone(zoneId)
-    writeDb((db) => {
-      const status = db.sensorStatus[zoneId]
-      if (!status.online) throw new ServiceError('CONFLICT', 'Los sensores de esta zona están fuera de línea.')
-      const counters = db.sensorCounters[zoneId]
-      const occupied = counters.entries - counters.exits
-      // Physical counters still fire, but a real exit can't happen from an empty lot.
-      if (sensorType === 'salida' && occupied <= 0) return
-      if (sensorType === 'entrada' && occupied >= zone.capacity) return
-      if (sensorType === 'entrada') counters.entries += 1
-      else counters.exits += 1
-      const timestamp = new Date().toISOString()
-      db.sensorEvents.push({
-        id: createId('se'),
-        zoneId,
-        sensorType,
-        timestamp,
-        counterId: sensorType === 'entrada' ? zone.entranceCounterId : zone.exitCounterId,
-      })
-      if (db.sensorEvents.length > MAX_STORED_EVENTS) db.sensorEvents = db.sensorEvents.slice(-MAX_STORED_EVENTS)
-      status.lastEventAt = timestamp
-    })
+    await api('/parking/sensor-events', { method: 'POST', body: { zoneId, sensorType } })
+    notifyChange()
   },
 
-  /** Demo only. In production status comes from IoT Core lifecycle events (connected/disconnected). */
+  /** Demo: turns a zone's counters on or off, to see the fallback to manual estimates. */
   async setOnline(_user: User, zoneId: ZoneId, online: boolean): Promise<void> {
-    writeDb((db) => {
-      db.sensorStatus[zoneId].online = online
-    })
+    await api(`/parking/zones/${encodeURIComponent(zoneId)}/sensor`, { method: 'POST', body: { online } })
+    notifyChange()
+  },
+
+  /** Demo: puts every zone back to its starting counts. Students' active entries stay. */
+  async resetDemo(_user: User): Promise<void> {
+    await api('/parking/demo/reset', { method: 'POST' })
+    notifyChange()
   },
 }

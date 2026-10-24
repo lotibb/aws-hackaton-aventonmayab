@@ -1,6 +1,7 @@
 import { BUILDINGS } from '../config'
 import { normalizePhone, timeToMinutes } from '../format'
 import { createId, notifyChange, readDb, writeDb } from '../mock/db'
+import { invalidatePresence } from './parking-service'
 import { fetchAuthSession } from 'aws-amplify/auth'
 import { COLONIAS, type Colonia, type Schedule, type User, type UserMode } from '../types'
 import { api } from './api'
@@ -318,6 +319,8 @@ export const userService = {
     writeDb((db) => {
       db.schedules.push(...schedules)
     })
+    // Forecasts count everyone's classes, the student's included.
+    invalidatePresence()
     return schedules
   },
 
@@ -328,5 +331,6 @@ export const userService = {
     writeDb((db) => {
       db.schedules = db.schedules.filter((s) => s.id !== scheduleId)
     })
+    invalidatePresence()
   },
 }

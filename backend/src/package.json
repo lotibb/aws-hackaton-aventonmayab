@@ -2,8 +2,13 @@
   "name": "aventon-mayab-lambdas",
   "version": "1.0.0",
   "private": true,
-  "description": "sam build bundles each Lambda into a single file with esbuild, so none of them ships node_modules. The AWS SDK comes with the Node.js runtime and stays out of the bundles.",
+  "description": "sam build bundles each Lambda into a single file with esbuild, so none of them ships node_modules. The AWS SDK comes with the Node.js runtime and stays out of the bundles; the devDependencies only run the API locally (backend/local).",
   "dependencies": {
     "esbuild": "0.28.2"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "3.1149.0",
+    "@aws-sdk/client-dynamodb": "3.1149.0",
+    "@aws-sdk/lib-dynamodb": "3.1149.0"
   }
 }

@@ -55,7 +55,7 @@ Todas son on-demand: se paga por uso, centavos en una demo.
 | `aventon-users` | `userId` | | nombre, email, celular, colonia, foto |
 | `aventon-trips` | `tripId` | `byColonia` (colonia + departureTime), `byDriver` | viajes |
 | `aventon-seat-requests` | `tripId` + `passengerId` | `byPassenger` | solicitudes de asiento |
-| `aventon-parking-zones` | `zoneId` | | capacidad, conteo, última lectura del sensor |
+| `aventon-parking-zones` | `zoneId` | | capacidad, conteo de sensores, estimado manual, últimas lecturas |
 | `aventon-parking-sessions` | `userId` | | entrada activa del alumno |
 | `aventon-schedules` | `userId` + `slotId` | | horario de clases (privado) |
 
@@ -74,7 +74,7 @@ URL: `https://zdm8p9cfd7.execute-api.us-east-1.amazonaws.com` (output `ApiUrl`).
 | Función | Archivo | Rutas |
 | --- | --- | --- |
 | `aventon-trips` | `trips.mjs` | viajes y solicitudes de asiento |
-| `aventon-parking` | `parking.mjs` | zonas, entrada y salida |
+| `aventon-parking` | `parking.mjs` | zonas, entrada y salida, sensores (simulador) y conteos para las proyecciones |
 | `aventon-profile` | `profile.mjs` | perfil, horario y borrar cuenta |
 
 `src/lib/` tiene el código compartido: el router, el usuario del token y el cliente de DynamoDB. Las rutas y reglas están en [`docs/api.md`](../docs/api.md).
@@ -82,6 +82,8 @@ URL: `https://zdm8p9cfd7.execute-api.us-east-1.amazonaws.com` (output `ApiUrl`).
 Build: `sam build` empaqueta cada Lambda con esbuild en un solo archivo (`Metadata: BuildMethod: esbuild` en `template.yaml`). Usan el AWS SDK que trae el runtime, así que pesan unos KB y ninguna lleva `node_modules`; `sam build` cabe en CloudShell sin usar `/tmp`. Siempre corre `sam build` antes de `sam deploy`.
 
 ## Pruebas
+
+**En tu máquina, sin desplegar:** [`local/README.md`](local/README.md) corre la API completa contra DynamoDB Local.
 
 `tests/integration_test.py` llama a las Lambdas desplegadas con los mismos eventos que manda API Gateway. Prueba todas las reglas, incluyendo 5 aceptaciones simultáneas por el último lugar y 5 entradas simultáneas al estacionamiento. Crea datos de prueba y los borra al final.
 

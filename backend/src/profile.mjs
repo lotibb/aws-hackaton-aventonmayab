@@ -159,7 +159,25 @@ async function deleteAccount(event) {
   for (const slot of await query(tables.schedules, undefined, "userId", id)) {
     await remove(tables.schedules, { userId: id, slotId: slot.slotId });
   }
-  await remove(tables.parkingSessions, { userId: id });
+  // An open parking entry leaves the zone's estimate too.
+  const { Attributes: parked } = await db.send(
+    new DeleteCommand({ TableName: tables.parkingSessions, Key: { userId: id }, ReturnValues: "ALL_OLD" }),
+  );
+  if (parked) {
+    await db
+      .send(
+        new UpdateCommand({
+          TableName: tables.parkingZones,
+          Key: { zoneId: parked.zoneId },
+          UpdateExpression: "SET manualCount = manualCount - :one",
+          ConditionExpression: "manualCount > :zero",
+          ExpressionAttributeValues: { ":one": 1, ":zero": 0 },
+        }),
+      )
+      .catch((err) => {
+        if (!isConditionFailed(err)) throw err;
+      });
+  }
   await remove(tables.users, { userId: id });
 
   await cognito.send(

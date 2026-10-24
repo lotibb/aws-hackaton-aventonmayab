@@ -1,0 +1,103 @@
+'use client'
+
+import { Camera, Loader2, Lock, Trash2 } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { toast } from 'sonner'
+import { useSWRConfig } from 'swr'
+import { ColoniaPicker } from '@/components/shared/colonia-picker'
+import { UserAvatar } from '@/components/shared/user-avatar'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { errorMessage, userService } from '@/lib/services'
+import type { Colonia, User } from '@/lib/types'
+
+const MAX_PHOTO_BYTES = 1_000_000
+
+export function ProfileCard({ user }: { user: User }) {
+  const { mutate } = useSWRConfig()
+  const [fullName, setFullName] = useState(user.fullName)
+  const [colonia, setColonia] = useState<Colonia | undefined>(user.colonia)
+  const [saving, setSaving] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const dirty = fullName.trim() !== user.fullName || colonia !== user.colonia
+
+  async function update(patch: Parameters<typeof userService.updateProfile>[1], success: string) {
+    setSaving(true)
+    try {
+      await userService.updateProfile(user, patch)
+      await mutate('session')
+      toast.success(success)
+    } catch (err) {
+      toast.error(errorMessage(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function onPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!file.type.startsWith('image/')) return toast.error('Elige una imagen.')
+    if (file.size > MAX_PHOTO_BYTES) return toast.error('La foto debe pesar menos de 1 MB.')
+    const reader = new FileReader()
+    reader.onload = () => update({ photoUrl: String(reader.result) }, 'Foto actualizada.')
+    reader.readAsDataURL(file)
+  }
+
+  return (
+    <section aria-label="Datos personales" className="flex flex-col gap-5 rounded-2xl border bg-card p-4">
+      <div className="flex items-center gap-4">
+        <UserAvatar name={user.fullName} photoUrl={user.photoUrl} className="size-16 text-lg" />
+        <div className="flex flex-col gap-1.5">
+          <p className="text-sm text-muted-foreground">Foto opcional</p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()} disabled={saving}>
+              <Camera aria-hidden="true" />
+              {user.photoUrl ? 'Cambiar' : 'Subir foto'}
+            </Button>
+            {user.photoUrl && (
+              <Button size="sm" variant="ghost" onClick={() => update({ photoUrl: null }, 'Foto eliminada.')} disabled={saving}>
+                <Trash2 aria-hidden="true" />
+                <span className="sr-only">Quitar foto</span>
+              </Button>
+            )}
+          </div>
+          <input ref={fileRef} type="file" accept="image/*" className="sr-only" tabIndex={-1} aria-hidden="true" onChange={onPhoto} />
+        </div>
+      </div>
+
+      <form
+        className="flex flex-col gap-4"
+        onSubmit={(e) => {
+          e.preventDefault()
+          update({ fullName: fullName.trim(), colonia }, 'Perfil actualizado.')
+        }}
+      >
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="fullName">Nombre completo</Label>
+          <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" className="h-12 text-base md:text-base" />
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="email">Correo institucional</Label>
+          <div className="relative">
+            <Input id="email" value={user.email} readOnly aria-readonly="true" className="h-12 bg-muted pr-10 text-base text-muted-foreground md:text-base" />
+            <Lock className="absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          </div>
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="colonia">Colonia</Label>
+          <ColoniaPicker id="colonia" value={colonia} onChange={setColonia} />
+          <p className="text-xs text-muted-foreground">Solo guardamos tu colonia, nunca tu dirección.</p>
+        </div>
+        {dirty && (
+          <Button type="submit" className="h-12 text-base" disabled={saving || !colonia}>
+            {saving && <Loader2 className="animate-spin" aria-hidden="true" />}
+            Guardar cambios
+          </Button>
+        )}
+      </form>
+    </section>
+  )
+}

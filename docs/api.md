@@ -55,7 +55,7 @@ Perfil público (`driver`, `passenger`): `{ id, name, colonia, photoUrl, phone? 
 | `GET /parking/session` | | `{ session }` activa o `null` |
 | `POST /parking/entry` | `{ zoneId }` | `{ session }` y `manualCount` +1 (sin pasar de `capacity`); 409 si ya hay una activa |
 | `POST /parking/exit` | | `{ session, exitedAt, minutes }` y `manualCount` −1 (sin bajar de 0); 409 si no hay activa |
-| `GET /parking/presence` | | `{ byWeekday: { 0-6: number[] }, max }`: cuántos alumnos tienen clase en cada bloque de 10 min de 6:00 a 21:00 (llegan 20 min antes, se van 10 min después). Solo conteos de todos los horarios, nunca horarios individuales |
+| `GET /parking/presence` | | `{ byWeekday: { 0-6: number[] }, max }`: cuántos alumnos tienen clase en cada bloque de 10 min de 6:00 a 21:00 (llegan 20 min antes, se van 10 min después). Solo conteos de todos los horarios, nunca horarios individuales. Se recalcula cada 10 s como máximo |
 | `POST /parking/sensor-events` | `{ zoneId, sensorType: "entrada" \| "salida" }` | Lo que manda un contador infrarrojo (hoy, el simulador): `sensorCount` ±1 entre 0 y `capacity`, guarda la lectura en `recentEvents` (últimas 10). 409 si los sensores de la zona están apagados |
 | `POST /parking/zones/{zoneId}/sensor` | `{ online: boolean }` | Prende o apaga los sensores de una zona (simulador) |
 | `POST /parking/demo/reset` | | Regresa las zonas P1–P10 a los conteos de la demo. Las entradas activas se conservan |

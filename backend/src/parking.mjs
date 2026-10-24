@@ -218,7 +218,8 @@ const DAY_START = 360;
 const DAY_END = 1260;
 const ARRIVAL_LEAD = 20;
 const DEPARTURE_LAG = 10;
-const PRESENCE_TTL_MS = 60_000;
+// Short, so a class someone just added shows up in everyone's forecast within seconds.
+const PRESENCE_TTL_MS = 10_000;
 let presenceCache;
 
 const toMinutes = (time) => {

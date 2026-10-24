@@ -316,9 +316,13 @@ export const userService = {
       building: s.building ?? cachedById.get(s.slotId)?.building ?? 'Sin edificio',
       room: s.room ?? cachedById.get(s.slotId)?.room,
     })).sort((a, b) => a.weekday - b.weekday || timeToMinutes(a.start) - timeToMinutes(b.start))
-    writeDb((db) => {
-      db.schedules = [...db.schedules.filter((s) => s.userId !== user.id), ...schedules]
-    })
+    // Writing the cache notifies every screen to refetch, which calls this again:
+    // only write when the classes changed, or the app reloads forever.
+    if (JSON.stringify(cached) !== JSON.stringify(schedules)) {
+      writeDb((db) => {
+        db.schedules = [...db.schedules.filter((s) => s.userId !== user.id), ...schedules]
+      })
+    }
     return schedules
   },
 

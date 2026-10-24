@@ -10,12 +10,18 @@ import { db, tables } from "./lib/db.mjs";
 import { HttpError, caller, isConditionFailed, readBody, router } from "./lib/http.mjs";
 
 // The campus zones. Same ids, names and capacities as frontend/lib/config.ts.
-// `demo` is the state "Restablecer datos de demo" goes back to.
+// `demo` is the state "Restablecer datos de demo" goes back to (frontend/lib/mock/seed.ts).
 const ZONES = [
-  { zoneId: "A", name: "Zona A", area: "Rectoría y Biblioteca", capacity: 150, demo: { sensorCount: 112, manualCount: 108 } },
-  { zoneId: "B", name: "Zona B", area: "Ingenierías", capacity: 120, demo: { sensorCount: 74, manualCount: 70 } },
-  { zoneId: "C", name: "Zona C", area: "Deportivo", capacity: 80, demo: { sensorCount: 28, manualCount: 31 } },
-  { zoneId: "D", name: "Zona D", area: "Ciencias de la Salud", capacity: 60, demo: { sensorCount: 52, manualCount: 41 } },
+  { zoneId: "P1", name: "Canchas y Salud I - Trasera", area: "Canchas y Salud I", capacity: 80, demo: { sensorCount: 35, manualCount: 31 } },
+  { zoneId: "P2", name: "Central y LIIET - Trasera", area: "Central y LIIET", capacity: 85, demo: { sensorCount: 53, manualCount: 50 } },
+  { zoneId: "P3", name: "tecniA", area: "Parque Tecnológico y de Innovación", capacity: 65, demo: { sensorCount: 28, manualCount: 31 } },
+  { zoneId: "P4", name: "Salud - Posterior", area: "Edificios de Salud", capacity: 40, demo: { sensorCount: 34, manualCount: 26 } },
+  { zoneId: "P5", name: "Central - Jardines", area: "Estacionamiento central, junto a la glorieta", capacity: 95, demo: { sensorCount: 70, manualCount: 68 } },
+  { zoneId: "P6", name: "Le Cordon Bleu", area: "Hacienda Mayab", capacity: 35, demo: { sensorCount: 18, manualCount: 17 } },
+  { zoneId: "P7", name: "Rectoría", area: "Frente a Rectoría y LABICAM", capacity: 65, demo: { sensorCount: 48, manualCount: 46 } },
+  { zoneId: "P8", name: "Edificio 5 - Trasera", area: "Arquitectura, Diseño, Comunicación e Ingeniería", capacity: 35, demo: { sensorCount: 22, manualCount: 20 } },
+  { zoneId: "P9", name: "Subway - Central", area: "Junto a Subway y el edificio Central", capacity: 35, demo: { sensorCount: 30, manualCount: 29 } },
+  { zoneId: "P10", name: "Edificio 5 - Lateral", area: "Entre Edificio 5 y LABICAM", capacity: 25, demo: { sensorCount: 14, manualCount: 13 } },
 ];
 const RECENT_EVENTS = 10;
 const SENSOR_TYPES = ["entrada", "salida"];
@@ -67,7 +73,7 @@ function presentZone(zone) {
   };
 }
 
-// GET /parking/zones  Creates the campus zones the first time, so no seed step is needed.
+// GET /parking/zones  Creates any missing campus zone, so no seed step is needed.
 async function listZones() {
   const items = [];
   let ExclusiveStartKey;
@@ -93,7 +99,10 @@ async function listZones() {
       items.push(await loadZone(zone.zoneId));
     }
   }
-  return items.sort((a, b) => a.zoneId.localeCompare(b.zoneId)).map(presentZone);
+  // P1, P2 … P10 in number order.
+  return items
+    .sort((a, b) => a.zoneId.localeCompare(b.zoneId, "es", { numeric: true }))
+    .map(presentZone);
 }
 
 // GET /parking/session  The caller's active entry, or null.

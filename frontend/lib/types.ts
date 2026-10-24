@@ -40,42 +40,28 @@ export interface PublicProfile {
   phone?: string
 }
 
-/**
- * Viewer-facing lifecycle:
- * Publicado → Solicitud pendiente → Aceptado → En curso → Finalizado (or Cancelado).
- */
+/** Viewer-facing lifecycle: Publicado → Solicitud pendiente → Aceptado → Finalizado (or Cancelado). */
 export type TripStatus =
   | 'publicado'
   | 'solicitud_pendiente'
   | 'aceptado'
-  | 'en_curso'
   | 'finalizado'
   | 'cancelado'
 
 /** The status actually persisted on the trip record. */
-export type StoredTripStatus = Extract<TripStatus, 'publicado' | 'en_curso' | 'finalizado' | 'cancelado'>
-
-export type MeetingPointKind = 'plaza' | 'parque' | 'referencia'
-
-export interface MeetingPoint {
-  id: string
-  colonia: Colonia
-  name: string
-  description: string
-  kind: MeetingPointKind
-}
+export type StoredTripStatus = 'publicado' | 'en_curso' | 'finalizado' | 'cancelado'
 
 export interface Trip {
   id: string
   driverId: string
-  originColonia: Colonia
+  originColonia: string
   destination: string
   routeDescription: string
   /** ISO 8601 in UTC, e.g. "2026-10-26T13:30:00.000Z". */
   departureTime: string
   seatsTotal: number
   seatsAvailable: number
-  meetingPointId: string
+  meetingPoint?: string
   status: StoredTripStatus
   createdAt: string
 }
@@ -104,7 +90,7 @@ export interface TripRequestView {
 export interface TripView {
   id: string
   driver: PublicProfile
-  originColonia: Colonia
+  originColonia: string
   destination: string
   routeDescription: string
   departureTime: string
@@ -118,20 +104,23 @@ export interface TripView {
   storedStatus: StoredTripStatus
   myRole: TripRole
   myRequest?: { id: string; status: SeatRequestStatus }
-  /** Only present for participants while the trip is active (Aceptado / En curso). */
-  meetingPoint?: MeetingPoint
+  /** Only present for the driver or an accepted passenger while the trip is active. */
+  meetingPoint?: string
   pickupTime?: string
   /** Only present for the driver. */
   requests?: TripRequestView[]
 }
 
-export type ZoneId = 'A' | 'B' | 'C' | 'D'
+export type ZoneId = 'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'P6' | 'P7' | 'P8' | 'P9' | 'P10'
 
 export interface ParkingZone {
   id: ZoneId
   name: string
   area: string
   capacity: number
+  capacityEstimated: boolean
+  /** Position on the original campus image, as percentages of width and height. */
+  mapPosition: { x: number; y: number }
   entranceCounterId: string
   exitCounterId: string
 }

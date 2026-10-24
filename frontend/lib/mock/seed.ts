@@ -82,17 +82,17 @@ export function createSeed(): DbState {
   })
 
   const trips: Trip[] = [
-    trip({ id: 't-1', driverId: 'u-carlos', originColonia: 'Montebello', routeDescription: 'Por Prolongación Montejo y Periférico Norte', date: day(1), time: '07:00', seatsTotal: 3, seatsAvailable: 3, meetingPointId: 'mp-montebello-1', status: 'publicado' }),
-    trip({ id: 't-2', driverId: 'u-ana', originColonia: 'Altabrisa', routeDescription: 'Por Calle 20 hacia Periférico, sin desvíos', date: day(1), time: '07:15', seatsTotal: 3, seatsAvailable: 3, meetingPointId: 'mp-altabrisa-1', status: 'publicado' }),
-    trip({ id: 't-3', driverId: 'u-sofia', originColonia: 'Cholul', routeDescription: 'Carretera Mérida–Cholul directo al campus', date: day(1), time: '06:50', seatsTotal: 2, seatsAvailable: 2, meetingPointId: 'mp-cholul-2', status: 'publicado' }),
-    trip({ id: 't-4', driverId: 'u-diego', originColonia: 'García Ginerés', routeDescription: 'Paseo de Montejo y Prolongación hasta Periférico', date: day(1), time: '07:30', seatsTotal: 3, seatsAvailable: 1, meetingPointId: 'mp-gg-1', status: 'publicado' }),
-    trip({ id: 't-5', driverId: 'u-ana', originColonia: 'Altabrisa', routeDescription: 'Por Calle 20 hacia Periférico', date: today, time: startedAt, seatsTotal: 3, seatsAvailable: 1, meetingPointId: 'mp-altabrisa-2', status: 'en_curso' }),
-    trip({ id: 't-6', driverId: 'u-regina', originColonia: 'Temozón Norte', routeDescription: 'Por la carretera a Progreso y Periférico', date: day(-1), time: '07:00', seatsTotal: 3, seatsAvailable: 2, meetingPointId: 'mp-tn-1', status: 'finalizado' }),
-    trip({ id: 't-7', driverId: 'u-jorge', originColonia: 'Las Américas', routeDescription: 'Por Avenida Las Américas y Periférico', date: day(1), time: '08:00', seatsTotal: 2, seatsAvailable: 1, meetingPointId: 'mp-la-1', status: 'cancelado' }),
-    trip({ id: 't-8', driverId: 'u-valeria', originColonia: 'Caucel', routeDescription: 'Periférico Poniente rodeando por el norte', date: day(1), time: '06:40', seatsTotal: 2, seatsAvailable: 2, meetingPointId: 'mp-caucel-2', status: 'publicado' }),
-    trip({ id: 't-9', driverId: 'u-luis', originColonia: 'Francisco de Montejo', routeDescription: 'Por Avenida Jacinto Canek y Periférico', date: day(1), time: '07:20', seatsTotal: 4, seatsAvailable: 3, meetingPointId: 'mp-fm-1', status: 'publicado' }),
-    trip({ id: 't-10', driverId: 'u-emilio', originColonia: 'Centro', routeDescription: 'Por Paseo de Montejo, salida después de comer', date: day(2), time: '13:30', seatsTotal: 2, seatsAvailable: 2, meetingPointId: 'mp-centro-2', status: 'publicado' }),
-    trip({ id: 't-11', driverId: 'u-mariana', originColonia: 'Gran Santa Fe', routeDescription: 'Por Calle 50 y Periférico Norte', date: day(2), time: '07:00', seatsTotal: 3, seatsAvailable: 3, meetingPointId: 'mp-gsf-1', status: 'publicado' }),
+    trip({ id: 't-1', driverId: 'u-carlos', originColonia: 'Montebello', routeDescription: 'Por Prolongación Montejo y Periférico Norte', date: day(1), time: '07:00', seatsTotal: 3, seatsAvailable: 3, meetingPoint: 'Plaza Montebello, entrada principal', status: 'publicado' }),
+    trip({ id: 't-2', driverId: 'u-ana', originColonia: 'Altabrisa', routeDescription: 'Por Calle 20 hacia Periférico, sin desvíos', date: day(1), time: '07:15', seatsTotal: 3, seatsAvailable: 3, meetingPoint: 'Plaza Altabrisa, área de ascenso', status: 'publicado' }),
+    trip({ id: 't-3', driverId: 'u-sofia', originColonia: 'Cholul', routeDescription: 'Carretera Mérida–Cholul directo al campus', date: day(1), time: '06:50', seatsTotal: 2, seatsAvailable: 2, meetingPoint: 'Parque de Cholul, junto al kiosco', status: 'publicado' }),
+    trip({ id: 't-4', driverId: 'u-diego', originColonia: 'García Ginerés', routeDescription: 'Paseo de Montejo y Prolongación hasta Periférico', date: day(1), time: '07:30', seatsTotal: 3, seatsAvailable: 1, meetingPoint: 'Parque de las Américas', status: 'publicado' }),
+    trip({ id: 't-5', driverId: 'u-ana', originColonia: 'Altabrisa', routeDescription: 'Por Calle 20 hacia Periférico', date: today, time: startedAt, seatsTotal: 3, seatsAvailable: 1, meetingPoint: 'Glorieta de Altabrisa', status: 'en_curso' }),
+    trip({ id: 't-6', driverId: 'u-regina', originColonia: 'Temozón Norte', routeDescription: 'Por la carretera a Progreso y Periférico', date: day(-1), time: '07:00', seatsTotal: 3, seatsAvailable: 2, meetingPoint: 'Plaza La Isla, acceso principal', status: 'finalizado' }),
+    trip({ id: 't-7', driverId: 'u-jorge', originColonia: 'Las Américas', routeDescription: 'Por Avenida Las Américas y Periférico', date: day(1), time: '08:00', seatsTotal: 2, seatsAvailable: 1, meetingPoint: 'Parque Las Américas', status: 'cancelado' }),
+    trip({ id: 't-8', driverId: 'u-valeria', originColonia: 'Caucel', routeDescription: 'Periférico Poniente rodeando por el norte', date: day(1), time: '06:40', seatsTotal: 2, seatsAvailable: 2, meetingPoint: 'Plaza Ciudad Caucel', status: 'publicado' }),
+    trip({ id: 't-9', driverId: 'u-luis', originColonia: 'Francisco de Montejo', routeDescription: 'Por Avenida Jacinto Canek y Periférico', date: day(1), time: '07:20', seatsTotal: 4, seatsAvailable: 3, meetingPoint: 'Parque de Francisco de Montejo', status: 'publicado' }),
+    trip({ id: 't-10', driverId: 'u-emilio', originColonia: 'Centro', routeDescription: 'Por Paseo de Montejo, salida después de comer', date: day(2), time: '13:30', seatsTotal: 2, seatsAvailable: 2, meetingPoint: 'Parque de Santa Lucía', status: 'publicado' }),
+    trip({ id: 't-11', driverId: 'u-mariana', originColonia: 'Gran Santa Fe', routeDescription: 'Por Calle 50 y Periférico Norte', date: day(2), time: '07:00', seatsTotal: 3, seatsAvailable: 3, meetingPoint: 'Parque Gran Santa Fe, entrada central', status: 'publicado' }),
   ]
 
   const req = (id: string, tripId: string, passengerId: string, status: SeatRequest['status']): SeatRequest => ({
@@ -130,10 +130,16 @@ export function createSeed(): DbState {
   )
 
   const targets: Record<ZoneId, { occupied: number; exits: number; manual: number; lastMinAgo: number }> = {
-    A: { occupied: 112, exits: 38, manual: 108, lastMinAgo: 2 },
-    B: { occupied: 74, exits: 21, manual: 70, lastMinAgo: 1 },
-    C: { occupied: 28, exits: 9, manual: 31, lastMinAgo: 4 },
-    D: { occupied: 52, exits: 17, manual: 41, lastMinAgo: 2 },
+    P1: { occupied: 35, exits: 9, manual: 31, lastMinAgo: 4 },
+    P2: { occupied: 53, exits: 21, manual: 50, lastMinAgo: 1 },
+    P3: { occupied: 28, exits: 9, manual: 31, lastMinAgo: 4 },
+    P4: { occupied: 34, exits: 17, manual: 26, lastMinAgo: 2 },
+    P5: { occupied: 70, exits: 38, manual: 68, lastMinAgo: 2 },
+    P6: { occupied: 18, exits: 8, manual: 17, lastMinAgo: 3 },
+    P7: { occupied: 48, exits: 18, manual: 46, lastMinAgo: 2 },
+    P8: { occupied: 22, exits: 10, manual: 20, lastMinAgo: 1 },
+    P9: { occupied: 30, exits: 12, manual: 29, lastMinAgo: 2 },
+    P10: { occupied: 14, exits: 6, manual: 13, lastMinAgo: 3 },
   }
 
   const sensorCounters = {} as DbState['sensorCounters']
@@ -160,7 +166,7 @@ export function createSeed(): DbState {
   }
 
   const parkingEvents: ParkingEvent[] = [
-    { id: 'pe-1', userId: 'u-carlos', zoneId: 'B', type: 'entrada', timestamp: new Date(now.getTime() - 50 * 60000).toISOString() },
+    { id: 'pe-1', userId: 'u-carlos', zoneId: 'P8', type: 'entrada', timestamp: new Date(now.getTime() - 50 * 60000).toISOString() },
   ]
 
   return { users, trips, requests, schedules, parkingEvents, sensorCounters, sensorEvents, sensorStatus, manualEstimates }

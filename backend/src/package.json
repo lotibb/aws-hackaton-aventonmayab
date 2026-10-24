@@ -1,5 +1,6 @@
 {
   "name": "aventon-mayab-lambdas",
+  "version": "1.0.0",
   "private": true,
   "description": "Dependencies for the Lambdas; sam build installs them. The AWS SDK comes with the Node.js runtime.",
   "dependencies": {

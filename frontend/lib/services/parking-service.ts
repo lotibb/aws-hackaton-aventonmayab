@@ -46,7 +46,8 @@ function toOccupancy(api: ApiZone & { zoneId: ZoneId }): ZoneOccupancy {
     occupied,
     percentage,
     light: trafficLightFor(percentage),
-    source: online ? 'verificado' : 'estimado',
+    // The counters are the simulator's for now, so their data is labeled "Simulado".
+    source: online ? 'simulado' : 'estimado',
     sensorStatus: { zoneId: api.zoneId, online, lastEventAt: api.lastReadingAt ?? new Date().toISOString() },
     sensorOccupied,
     manualEstimate,

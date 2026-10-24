@@ -70,3 +70,27 @@ Flujo: `authService.signUp(email, password)` → el alumno recibe el código →
 - Ver usuarios: Console → Cognito → User pools → `aventon-mayab-users` → Users.
 
 **Límite de la demo:** el correo integrado de Cognito envía unos 50 correos al día. Alcanza para la demo; para producción se conecta Amazon SES.
+
+## Paso 3: Tablas de DynamoDB
+
+`infra/dynamodb.yaml` (stack `aventon-mayab-data`, ya desplegado) crea 6 tablas on-demand: pagas solo por uso, centavos en una demo.
+
+| Tabla | Llave | Guarda |
+| --- | --- | --- |
+| `aventon-users` | `userId` | nombre, email, colonia, foto |
+| `aventon-trips` | `tripId` | conductor, colonia, `departureTime`, asientos libres, estado, punto de encuentro |
+| `aventon-seat-requests` | `tripId` + `passengerId` | estado: pending, accepted, rejected, cancelled |
+| `aventon-parking-zones` | `zoneId` | capacidad, conteo actual, estado del sensor, última lectura |
+| `aventon-parking-sessions` | `userId` | entrada activa del alumno (zona, hora) |
+| `aventon-schedules` | `userId` + `slotId` | horario de clases (privado) |
+
+- `userId` siempre es el `sub` de Cognito (`authService.getUserId()`).
+- Índice `byColonia` en trips: busca por `colonia` y ordena por `departureTime`.
+- `departureTime` va en ISO 8601 **UTC** (`2026-10-26T13:30:00Z`) para que el orden sea correcto.
+
+Desplegar con la CLI:
+
+```sh
+aws cloudformation deploy --region us-east-1 \
+  --template-file infra/dynamodb.yaml --stack-name aventon-mayab-data
+```

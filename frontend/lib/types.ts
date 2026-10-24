@@ -125,13 +125,16 @@ export interface TripView {
   requests?: TripRequestView[]
 }
 
-export type ZoneId = 'A' | 'B' | 'C' | 'D'
+export type ZoneId = 'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'P6' | 'P7' | 'P8' | 'P9' | 'P10'
 
 export interface ParkingZone {
   id: ZoneId
   name: string
   area: string
   capacity: number
+  capacityEstimated: boolean
+  /** Position on the original campus image, as percentages of width and height. */
+  mapPosition: { x: number; y: number }
   entranceCounterId: string
   exitCounterId: string
 }

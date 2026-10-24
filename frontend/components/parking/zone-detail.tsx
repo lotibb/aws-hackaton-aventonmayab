@@ -17,7 +17,8 @@ export function ZoneDetail({ occupancy: o }: { occupancy: ZoneOccupancy }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-lg font-semibold">{o.zone.name}</h2>
-          <p className="text-sm text-muted-foreground">{o.zone.area}</p>
+          <p className="text-sm text-muted-foreground">{o.zone.id} · {o.zone.area}</p>
+          <p className="text-xs text-muted-foreground">Capacidad {o.zone.capacityEstimated ? 'estimada' : ''}: {o.zone.capacity} lugares</p>
         </div>
         <DataBadge source={o.source} />
       </div>
@@ -28,7 +29,7 @@ export function ZoneDetail({ occupancy: o }: { occupancy: ZoneOccupancy }) {
           <p className="flex items-baseline gap-2">
             <span className="text-4xl font-semibold tabular-nums">{o.percentage}%</span>
             <span className="text-sm text-muted-foreground tabular-nums">
-              {o.occupied} / {o.zone.capacity}
+              {o.occupied} ocupados · {Math.max(0, o.zone.capacity - o.occupied)} disponibles
             </span>
           </p>
           <TrafficLabel light={o.light} />

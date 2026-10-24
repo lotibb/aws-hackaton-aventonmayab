@@ -94,7 +94,6 @@ export const TRIP_STATUS_LABEL: Record<TripStatus, string> = {
   publicado: 'Publicado',
   solicitud_pendiente: 'Solicitud pendiente',
   aceptado: 'Aceptado',
-  en_curso: 'En curso',
   finalizado: 'Finalizado',
   cancelado: 'Cancelado',
 }

@@ -79,6 +79,7 @@ Resources:
         CancelRequest: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: DELETE, Path: "/trips/{tripId}/requests" } }
         AcceptRequest: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/trips/{tripId}/requests/{passengerId}/accept" } }
         RejectRequest: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/trips/{tripId}/requests/{passengerId}/reject" } }
+        SetMeetingPoint: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: PUT, Path: "/trips/{tripId}/meeting-point" } }
         SetTripStatus: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/trips/{tripId}/status" } }
       Policies:
         - DynamoDBCrudPolicy:

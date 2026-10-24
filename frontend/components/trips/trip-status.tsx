@@ -6,12 +6,11 @@ const STYLE: Record<TripStatus, string> = {
   publicado: 'bg-secondary text-secondary-foreground',
   solicitud_pendiente: 'bg-warning/20 text-warning-foreground dark:text-warning',
   aceptado: 'bg-primary/12 text-primary',
-  en_curso: 'bg-success/15 text-success',
   finalizado: 'bg-muted text-muted-foreground',
   cancelado: 'bg-destructive/12 text-destructive',
 }
 
-const STEPS: TripStatus[] = ['publicado', 'solicitud_pendiente', 'aceptado', 'en_curso', 'finalizado']
+const STEPS: TripStatus[] = ['publicado', 'solicitud_pendiente', 'aceptado', 'finalizado']
 
 export function TripStatusBadge({ status, className }: { status: TripStatus; className?: string }) {
   return (

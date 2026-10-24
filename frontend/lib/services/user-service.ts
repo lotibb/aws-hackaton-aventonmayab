@@ -160,10 +160,11 @@ export const userService = {
     return saved
   },
 
-  async setMode(user: User, mode: UserMode): Promise<void> {
+  async setMode(user: User, mode: UserMode): Promise<User> {
     const current = await this.getProfile(user)
-    await saveUser({ ...current, activeMode: mode })
+    const saved = await saveUser({ ...current, activeMode: mode })
     notifyChange()
+    return saved
   },
 
   /** The API deletes every record tied to the account, and the Cognito user itself. */
